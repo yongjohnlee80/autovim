@@ -1,4 +1,4 @@
-# johno's Neovim Config
+# Johno's Neovim Config
 
 My Neovim configuration for [Omarchy](https://omarchy.com), purpose-built for TypeScript and Go development with Claude as a first-class citizen.
 
