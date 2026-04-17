@@ -6,3 +6,15 @@ debug
 foo.*
 *.log
 data
+vendor/
+launch.json
+
+# Compiled binaries / build artifacts
+sample.comi
+*.exe
+*.out
+*.o
+*.a
+*.so
+*.dylib
+*.dll
