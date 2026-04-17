@@ -8,6 +8,7 @@ foo.*
 data
 vendor/
 launch.json
+.idea/
 
 # Compiled binaries / build artifacts
 sample.comi
