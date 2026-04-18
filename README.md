@@ -19,6 +19,7 @@ I've tried other setups. I've clicked through menus. I've dragged and dropped. I
 - **[nvim-dap](https://github.com/mfussenegger/nvim-dap) + [nvim-dap-view](https://github.com/igorlfs/nvim-dap-view) + [nvim-dap-go](https://github.com/leoluz/nvim-dap-go)** -- delve-powered Go debugging with a minimalist inspection panel. Breakpoints, step controls, watches, attach-to-process, and debug-test-under-cursor
 - **`utils.worktree`** -- in-editor worktree switcher. Hops between repos/worktrees under the directory you opened nvim in, without killing your terminal buffers
 - **`utils.go_test_env`** -- reads `.vscode/launch.json` and merges `buildFlags` / `env` / `envFile` into `<leader>dt` so VSCode and Neovim share one source of truth for test debugging. Cached per session
+- **[lazysql](https://github.com/jorgerojas26/lazysql)** -- a TUI SQL client hoisted into a floating window via `snacks.terminal`. Pre-configured connections, one keystroke to toggle, and the process stays alive between toggles so you don't pay the connection cost twice
 - **11 colorschemes** -- because choosing a theme is a form of self-expression (currently rotating through them like outfits)
 
 ## Key Bindings Worth Knowing
@@ -64,6 +65,12 @@ I've tried other setups. I've clicked through menus. I've dragged and dropped. I
 | `<leader>gw` | Pick a worktree under the root and `:cd` into it |
 | `<leader>gW` | Jump back to the original root directory |
 
+### SQL (lazysql)
+
+| Binding | What It Does |
+|---|---|
+| `<C-q>` | Toggle the lazysql float (works in normal and terminal mode) |
+
 ## Debugging Go Tests Like a Grown-up
 
 The `<leader>dt` keymap doesn't just launch delve -- it reads `.vscode/launch.json` from your project root, pulls out `buildFlags`, `env`, and `envFile`, and passes them to the delve test run. Same file VSCode reads, so teammates on either editor share one config. The parsed values are cached for the nvim session (press `<leader>dL` to reload after editing).
@@ -85,6 +92,55 @@ If the directory you opened nvim in contains multiple git repos (or a bare repo 
 Existing `:term` buffers **keep their own pwd**. That's not magic; it's just how POSIX processes work -- each shell inherited nvim's cwd at spawn time and is now an independent process. So your long-running `go test -watch` in terminal A doesn't get yanked around when you jump to a different repo in terminal B.
 
 The picker uses `git worktree list --porcelain` under the hood, so both plain repos and bare-repo layouts with linked worktrees are handled. Bare repos themselves are skipped (you don't cd into those). Branch names show up in brackets; the active cwd gets a `●` marker.
+
+## SQL Without Leaving Neovim
+
+`<C-q>` drops [lazysql](https://github.com/jorgerojas26/lazysql) into a lazygit-style floating window. First press boots the picker with your configured connections; subsequent presses hide/show the float while the process keeps running in the background -- so reconnecting to prod is a one-time cost per nvim session.
+
+**Requirements.** Install the binary on your system (pick your flavor: `yay -S lazysql-bin`, `go install github.com/jorgerojas26/lazysql@latest`, or grab a release from the repo). The nvim side is just a `snacks.terminal` toggle -- no plugin to install.
+
+**Connections.** Connections live in `~/.config/lazysql/config.toml`. One `[[database]]` block per entry; lazysql reads the file on launch. Keep the file `chmod 600` since the URL embeds credentials.
+
+```toml
+[[database]]
+Name = 'My Prod DB'
+Provider = 'postgres'
+DBName = 'myapp'
+URL = 'postgresql://user:pass@host:5432/myapp'
+ReadOnly = false
+
+[[database]]
+Name = 'Local'
+Provider = 'postgres'
+DBName = 'dev'
+URL = 'postgresql://root:secret@localhost:5432/dev?sslmode=disable'
+ReadOnly = false
+```
+
+Set `ReadOnly = true` on anything you'd rather not fat-finger a `DELETE` into. Supported providers include `postgres`, `mysql`, `sqlite3`, and a few others -- check the [lazysql repo](https://github.com/jorgerojas26/lazysql) for the full list.
+
+**In-app keys worth knowing.** `?` opens lazysql's own help panel, but these are the ones you'll actually use:
+
+| Key | What It Does |
+|---|---|
+| `H` / `L` | Focus sidebar / focus table |
+| `j` / `k` | Move down / up |
+| `/` | Filter / search |
+| `c` | Edit cell |
+| `o` | Insert new row |
+| `d` | Delete row |
+| `y` | Yank cell value |
+| `Ctrl+E` | Open the SQL editor |
+| `Ctrl+R` | Execute query |
+| `Ctrl+S` | Save pending changes |
+| `<` / `>` | Previous / next page |
+| `J` / `K` | Sort descending / ascending |
+| `z` / `Z` | Toggle JSON viewer for cell / row |
+| `E` | Export to CSV |
+| `?` | Help / full keybinding list |
+| `q` | Quit lazysql (kills the process -- prefer `<C-q>` to hide) |
+
+Hitting `q` exits lazysql and drops the connection. Use `<C-q>` instead to tuck the float away while leaving the session alive.
 
 ## The Stack
 
