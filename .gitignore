@@ -9,6 +9,7 @@ data
 vendor/
 launch.json
 .idea/
+sample.com
 
 # Compiled binaries / build artifacts
 sample.comi
