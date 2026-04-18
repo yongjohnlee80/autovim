@@ -9,8 +9,18 @@
 -- Existing :term buffers keep their own pwd (they're independent child
 -- processes that inherited cwd at spawn time). Only new terminals and
 -- new file-pickers pick up the switched cwd.
+--
+-- LSP note: language servers that anchor their workspace to a go.mod /
+-- project root (e.g. gopls) cache that root at first attach, so a plain
+-- :cd leaves them pointing at the old worktree. After each cd we stop
+-- the configured servers and re-fire FileType autocmds on every loaded
+-- buffer so lspconfig re-resolves root_dir against the new cwd.
 
 local M = {}
+
+-- LSP servers that are workspace-rooted and need a full restart on cd.
+-- Add more here if another server starts mis-resolving after switches.
+M.lsp_servers_to_restart = { "gopls" }
 
 -- Captured once when this module is first required (keymaps.lua requires
 -- it at startup). Use set_root() to override.
@@ -110,9 +120,60 @@ local function relative_to_root(path)
   return p
 end
 
+-- If a neo-tree filesystem window is currently visible, re-anchor it at
+-- the new cwd so the file tree reflects the worktree we just switched
+-- into. No-op if neo-tree isn't installed or isn't on screen — we don't
+-- want the switch to *open* neo-tree when the user hasn't asked for it.
+local function refresh_file_tree()
+  local mgr_ok, manager = pcall(require, "neo-tree.sources.manager")
+  if not mgr_ok then return end
+
+  local state = manager.get_state and manager.get_state("filesystem")
+  if not (state and state.winid and vim.api.nvim_win_is_valid(state.winid)) then
+    return
+  end
+
+  local cwd = vim.fn.fnameescape(vim.fn.getcwd())
+  local ok = pcall(vim.cmd, "Neotree action=show dir=" .. cwd)
+  if not ok then
+    pcall(manager.refresh, "filesystem")
+  end
+end
+
+-- Stop workspace-rooted LSP clients and re-fire FileType on every loaded
+-- buffer so lspconfig's attach logic runs again with the new cwd as the
+-- root-resolution anchor. Buffers whose path still lies inside an old
+-- worktree will re-anchor to *their own* go.mod — which is correct; we
+-- just need gopls to stop reusing whichever workspace it picked first.
+local function restart_workspace_lsps()
+  local stopped = 0
+  for _, name in ipairs(M.lsp_servers_to_restart) do
+    for _, client in ipairs(vim.lsp.get_clients({ name = name })) do
+      vim.lsp.stop_client(client.id, true)
+      stopped = stopped + 1
+    end
+  end
+  if stopped == 0 then return end
+
+  -- Stop is async; defer re-attach so the old client is fully gone
+  -- before lspconfig's autocmd fires a new launch.
+  vim.defer_fn(function()
+    for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_is_loaded(bufnr) and vim.bo[bufnr].buftype == "" then
+        local ft = vim.bo[bufnr].filetype
+        if ft ~= "" then
+          vim.api.nvim_exec_autocmds("FileType", { buffer = bufnr, pattern = ft })
+        end
+      end
+    end
+  end, 150)
+end
+
 local function switch_to(path)
   local target = norm(path)
   vim.cmd.cd(vim.fn.fnameescape(target))
+  restart_workspace_lsps()
+  refresh_file_tree()
   vim.notify(
     ("worktree → %s"):format(relative_to_root(target)),
     vim.log.levels.INFO,
@@ -157,6 +218,8 @@ function M.home()
     return
   end
   vim.cmd.cd(vim.fn.fnameescape(root))
+  restart_workspace_lsps()
+  refresh_file_tree()
   vim.notify(
     ("worktree ← root (%s)"):format(root),
     vim.log.levels.INFO,
