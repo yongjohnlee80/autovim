@@ -157,12 +157,18 @@ local function restart_workspace_lsps()
 
   -- Stop is async; defer re-attach so the old client is fully gone
   -- before lspconfig's autocmd fires a new launch.
+  --
+  -- nvim_exec_autocmds disallows both `buffer` and `pattern` on one call
+  -- (they're mutually exclusive). Pass `buffer` only — nvim uses the
+  -- buffer's own filetype to match pattern-based autocmds, which is the
+  -- shape lspconfig registers. Wrap in pcall so one unhealthy buffer
+  -- doesn't abort the rest of the re-attach loop.
   vim.defer_fn(function()
     for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
       if vim.api.nvim_buf_is_loaded(bufnr) and vim.bo[bufnr].buftype == "" then
         local ft = vim.bo[bufnr].filetype
         if ft ~= "" then
-          vim.api.nvim_exec_autocmds("FileType", { buffer = bufnr, pattern = ft })
+          pcall(vim.api.nvim_exec_autocmds, "FileType", { buffer = bufnr })
         end
       end
     end
