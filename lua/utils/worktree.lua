@@ -216,6 +216,313 @@ function M.pick()
   end)
 end
 
+local function git_common_dir(path)
+  local out = vim.fn.systemlist({
+    "git", "-C", path, "rev-parse", "--path-format=absolute", "--git-common-dir",
+  })
+  if vim.v.shell_error ~= 0 or not out[1] or out[1] == "" then return nil end
+  return (out[1]:gsub("/$", ""))
+end
+
+-- New worktrees are created as siblings of the common git dir.
+--   /foo/repo/.bare  → container /foo/repo   → new wt at /foo/repo/<name>
+--   /foo/repo/.git   → container /foo/repo   → new wt at /foo/repo/<name>
+--   /foo/repo.git    → container /foo        → new wt at /foo/<name>
+local function repo_container(common)
+  return vim.fn.fnamemodify(common, ":h")
+end
+
+local function list_child_repos(dir)
+  local repos = {}
+  local handle = vim.uv.fs_scandir(dir)
+  if not handle then return repos end
+  while true do
+    local name, t = vim.uv.fs_scandir_next(handle)
+    if not name then break end
+    if (t == "directory" or t == "link") and not name:match("^%.") then
+      local full = dir .. "/" .. name
+      if is_git(full) then
+        table.insert(repos, { name = name, path = norm(full) })
+      end
+    end
+  end
+  table.sort(repos, function(a, b) return a.name < b.name end)
+  return repos
+end
+
+local function list_branches(repo_path)
+  local lines = vim.fn.systemlist({
+    "git", "-C", repo_path, "for-each-ref", "--format=%(refname:short)", "refs/heads",
+  })
+  if vim.v.shell_error ~= 0 then return {} end
+  -- Float main/master to the top so the first choice is usually right.
+  table.sort(lines, function(a, b)
+    local function rank(s)
+      if s == "main" then return 0 end
+      if s == "master" then return 1 end
+      return 2
+    end
+    local ra, rb = rank(a), rank(b)
+    if ra ~= rb then return ra < rb end
+    return a < b
+  end)
+  return lines
+end
+
+local function has_uncommitted(worktree_path)
+  local lines =
+    vim.fn.systemlist({ "git", "-C", worktree_path, "status", "--porcelain" })
+  return vim.v.shell_error == 0 and #lines > 0
+end
+
+-- Any buffer under `path` (inclusive) passed to `fn`. Matching is done on
+-- fully-resolved absolute paths so that relative-named buffers line up too.
+local function each_buf_under(path, fn)
+  local prefix = path .. "/"
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(buf) then
+      local name = vim.api.nvim_buf_get_name(buf)
+      if name ~= "" then
+        local abs = norm(name)
+        if abs == path or abs:sub(1, #prefix) == prefix then
+          fn(buf, abs)
+        end
+      end
+    end
+  end
+end
+
+-- Dirty buffers inside `path`. `git status` only knows what's on disk, so
+-- we separately check nvim's in-memory modified flag to avoid silently
+-- nuking unsaved edits when the worktree gets removed.
+local function modified_buffers_under(path)
+  local dirty = {}
+  each_buf_under(path, function(buf, abs)
+    if vim.bo[buf].modified then table.insert(dirty, abs) end
+  end)
+  return dirty
+end
+
+-- Force-close every buffer whose file used to live inside the (now-removed)
+-- worktree. Without this the buffers linger, point at missing files, and
+-- explode on focus/save.
+local function wipe_buffers_under(path)
+  local count = 0
+  each_buf_under(path, function(buf)
+    if pcall(vim.api.nvim_buf_delete, buf, { force = true }) then
+      count = count + 1
+    end
+  end)
+  return count
+end
+
+local function run_git(args)
+  local res = vim.system(args, { text = true }):wait()
+  return res.code, (res.stdout or "") .. (res.stderr or "")
+end
+
+function M.add()
+  local cwd = norm(vim.fn.getcwd())
+  local here_common = git_common_dir(cwd)
+
+  local function proceed(repo_common, label)
+    local container = repo_container(repo_common)
+
+    vim.ui.input({ prompt = ("New worktree in %s: "):format(label) }, function(name)
+      if not name then return end
+      name = vim.trim(name)
+      if name == "" then return end
+
+      local branches = list_branches(repo_common)
+      if #branches == 0 then
+        vim.notify(
+          "No branches found in repo",
+          vim.log.levels.ERROR,
+          { title = "worktree" }
+        )
+        return
+      end
+
+      vim.ui.select(branches, {
+        prompt = ("Base branch for '%s':"):format(name),
+      }, function(base)
+        if not base then return end
+        local target = container .. "/" .. name
+        local code, out = run_git({
+          "git", "-C", repo_common, "worktree", "add", "-b", name, target, base,
+        })
+        if code ~= 0 then
+          vim.notify(
+            "git worktree add failed:\n" .. out,
+            vim.log.levels.ERROR,
+            { title = "worktree" }
+          )
+          return
+        end
+        refresh_file_tree()
+        vim.notify(
+          ("+ %s (from %s)"):format(relative_to_root(target), base),
+          vim.log.levels.INFO,
+          { title = "worktree" }
+        )
+      end)
+    end)
+  end
+
+  if here_common then
+    proceed(here_common, vim.fn.fnamemodify(repo_container(here_common), ":t"))
+    return
+  end
+
+  -- At the root: scan child dirs for repos and let the user pick one.
+  local repos = list_child_repos(root)
+  if #repos == 0 then
+    vim.notify(
+      ("no repos found under %s"):format(root),
+      vim.log.levels.WARN,
+      { title = "worktree" }
+    )
+    return
+  end
+  vim.ui.select(repos, {
+    prompt = "Select a repo:",
+    format_item = function(r) return r.name end,
+  }, function(choice)
+    if not choice then return end
+    local repo_common = git_common_dir(choice.path)
+    if not repo_common then
+      vim.notify(
+        "Could not resolve git-common-dir for " .. choice.path,
+        vim.log.levels.ERROR,
+        { title = "worktree" }
+      )
+      return
+    end
+    proceed(repo_common, choice.name)
+  end)
+end
+
+function M.remove()
+  local cwd = norm(vim.fn.getcwd())
+  local here_common = git_common_dir(cwd)
+
+  local candidates = {}
+  if here_common then
+    local lines =
+      vim.fn.systemlist({ "git", "-C", here_common, "worktree", "list", "--porcelain" })
+    if vim.v.shell_error == 0 then
+      for _, wt in ipairs(parse_porcelain(lines)) do
+        if not wt.bare then
+          wt.path = norm(wt.path)
+          table.insert(candidates, wt)
+        end
+      end
+    end
+  else
+    candidates = collect_worktrees(root)
+  end
+
+  -- Don't offer the active worktree — removing it while we stand on it is a
+  -- foot-gun (`git worktree remove` refuses, and we'd need to cd away first).
+  local removable = {}
+  for _, wt in ipairs(candidates) do
+    if wt.path ~= cwd then table.insert(removable, wt) end
+  end
+
+  if #removable == 0 then
+    vim.notify(
+      "no removable worktrees found",
+      vim.log.levels.WARN,
+      { title = "worktree" }
+    )
+    return
+  end
+
+  vim.ui.select(removable, {
+    prompt = "Remove worktree:",
+    format_item = function(wt)
+      local rel = relative_to_root(wt.path)
+      local branch = wt.branch and ("[" .. wt.branch .. "]")
+        or wt.detached and "[detached]"
+        or ""
+      return ("%-40s %s"):format(rel, branch)
+    end,
+  }, function(choice)
+    if not choice then return end
+    if has_uncommitted(choice.path) then
+      vim.notify(
+        ("refusing to remove — uncommitted changes in %s"):format(
+          relative_to_root(choice.path)
+        ),
+        vim.log.levels.ERROR,
+        { title = "worktree" }
+      )
+      return
+    end
+    local dirty = modified_buffers_under(choice.path)
+    if #dirty > 0 then
+      vim.notify(
+        ("refusing to remove — unsaved buffers in %s:\n  %s"):format(
+          relative_to_root(choice.path),
+          table.concat(dirty, "\n  ")
+        ),
+        vim.log.levels.ERROR,
+        { title = "worktree" }
+      )
+      return
+    end
+    -- Capture the repo's common dir BEFORE removing the worktree, since
+    -- after removal `choice.path` is gone and can't anchor a `-C` call.
+    local repo_common = git_common_dir(choice.path)
+
+    local code, out =
+      run_git({ "git", "-C", choice.path, "worktree", "remove", choice.path })
+    if code ~= 0 then
+      vim.notify(
+        "git worktree remove failed:\n" .. out,
+        vim.log.levels.ERROR,
+        { title = "worktree" }
+      )
+      return
+    end
+    local wiped = wipe_buffers_under(choice.path)
+    refresh_file_tree()
+    vim.notify(
+      ("- %s%s"):format(
+        relative_to_root(choice.path),
+        wiped > 0 and (" (closed %d buffer(s))"):format(wiped) or ""
+      ),
+      vim.log.levels.INFO,
+      { title = "worktree" }
+    )
+
+    -- Worktree is gone; optionally clean up the branch too. Detached HEADs
+    -- have no branch to delete, so skip the prompt in that case.
+    if not choice.branch or not repo_common then return end
+    local answer = vim.fn.confirm(
+      ("Also delete branch '%s'?"):format(choice.branch),
+      "&Yes\n&No",
+      2
+    )
+    if answer ~= 1 then return end
+    local bcode, bout =
+      run_git({ "git", "-C", repo_common, "branch", "-D", choice.branch })
+    if bcode ~= 0 then
+      vim.notify(
+        "git branch -D failed:\n" .. bout,
+        vim.log.levels.ERROR,
+        { title = "worktree" }
+      )
+      return
+    end
+    vim.notify(
+      ("- branch %s"):format(choice.branch),
+      vim.log.levels.INFO,
+      { title = "worktree" }
+    )
+  end)
+end
+
 function M.home()
   if norm(vim.fn.getcwd()) == norm(root) then
     vim.notify(
