@@ -17,7 +17,7 @@ I've tried other setups. I've clicked through menus. I've dragged and dropped. I
 - **LSP + Mason** -- language servers managed properly, so Go and TypeScript just work
 - **Treesitter** -- syntax highlighting that understands your code, not just your brackets
 - **[nvim-dap](https://github.com/mfussenegger/nvim-dap) + [nvim-dap-view](https://github.com/igorlfs/nvim-dap-view) + [nvim-dap-go](https://github.com/leoluz/nvim-dap-go)** -- delve-powered Go debugging with a minimalist inspection panel. Breakpoints, step controls, watches, attach-to-process, and debug-test-under-cursor
-- **`utils.worktree`** -- in-editor worktree switcher. Hops between repos/worktrees under the directory you opened nvim in, without killing your terminal buffers
+- **[worktree.nvim](https://github.com/yongjohnlee80/worktree.nvim)** -- in-editor worktree switcher I wrote. Hops between repos/worktrees under the directory you opened nvim in, with safety rails on add/remove and ghost-buffer cleanup. Comes with a lualine component and optional LSP re-anchor on switch
 - **`utils.go_test_env`** -- reads `.vscode/launch.json` and merges `buildFlags` / `env` / `envFile` into `<leader>dt` so VSCode and Neovim share one source of truth for test debugging. Cached per session
 - **[lazysql](https://github.com/jorgerojas26/lazysql)** -- a TUI SQL client hoisted into a floating window via `snacks.terminal`. Pre-configured connections, one keystroke to toggle, and the process stays alive between toggles so you don't pay the connection cost twice
 - **11 colorschemes** -- because choosing a theme is a form of self-expression (currently rotating through them like outfits)

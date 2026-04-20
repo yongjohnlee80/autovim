@@ -5,12 +5,5 @@
 -- Map 'jk' to Escape in insert mode
 vim.keymap.set("i", "jk", "<Esc>", { desc = "Exit insert mode" })
 
--- Worktree switcher. Module captures the startup cwd as "root" on first require.
--- <leader>gw  → pick a worktree under root and :cd into it
--- <leader>gW  → :cd back to the original root
--- Existing :term buffers keep their own pwd (independent child processes).
-local worktree = require("utils.worktree")
-vim.keymap.set("n", "<leader>gw", worktree.pick, { desc = "Worktree: switch" })
-vim.keymap.set("n", "<leader>gW", worktree.home, { desc = "Worktree: back to root" })
-vim.keymap.set("n", "<leader>gA", worktree.add, { desc = "Worktree: add" })
-vim.keymap.set("n", "<leader>gR", worktree.remove, { desc = "Worktree: remove" })
+-- Worktree keymaps live in lua/plugins/worktree.lua under the lazy `keys =`
+-- block of the worktree.nvim spec.
