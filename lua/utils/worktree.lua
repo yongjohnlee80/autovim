@@ -134,7 +134,9 @@ local function refresh_file_tree()
   end
 
   local cwd = vim.fn.fnameescape(vim.fn.getcwd())
-  local ok = pcall(vim.cmd, "Neotree action=show dir=" .. cwd)
+  -- Plain `Neotree dir=<path>` re-roots the existing source; `action=show`
+  -- short-circuits when the window is already visible and skips re-navigation.
+  local ok = pcall(vim.cmd, "Neotree dir=" .. cwd)
   if not ok then
     pcall(manager.refresh, "filesystem")
   end
