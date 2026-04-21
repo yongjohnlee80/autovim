@@ -5,7 +5,7 @@
 return {
   {
     "yongjohnlee80/gobugger.nvim",
-    version = "^0.1.0",
+    version = "^0.1.1",
     dependencies = {
       "mfussenegger/nvim-dap",
       "leoluz/nvim-dap-go",
@@ -30,5 +30,17 @@ return {
       opts.ensure_installed = opts.ensure_installed or {}
       vim.list_extend(opts.ensure_installed, { "delve" })
     end,
+  },
+
+  -- nvim-dap has no `.setup()` function -- it's configured by mutating
+  -- `dap.configurations.*` and `dap.adapters.*` directly. But
+  -- LazyVim's lang extras (go / python) contribute an opts fragment to
+  -- this plugin indirectly, which makes lazy.nvim auto-call
+  -- `require("dap").setup(opts)` and crash with "attempt to call field
+  -- 'setup' (a nil value)". Providing an explicit no-op config here
+  -- short-circuits that auto-setup without disabling the plugin.
+  {
+    "mfussenegger/nvim-dap",
+    config = function() end,
   },
 }
