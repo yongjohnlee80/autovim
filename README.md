@@ -55,8 +55,13 @@ I've tried other setups. I've clicked through menus. I've dragged and dropped. I
 | `<leader>de` | Evaluate under cursor / selection |
 | `<leader>da` | Attach to a running process with delve |
 | `<leader>dt` | Debug the Go test under cursor (merges `launch.json`) |
+| `<leader>dm` | Debug a main program via `mode=debug` config in `launch.json` |
+| `<leader>dM` | Scaffold a new `mode=debug` entry into the project-root `launch.json` |
+| `<leader>dN` | Scaffold a new `mode=test` entry into the project-root `launch.json` |
+| `<leader>dD` | Doctor — report launch.json / worktree / git state |
+| `<leader>dF` | Fix worktree — `git worktree repair` from the bare |
 | `<leader>dT` | Re-run the last debug session |
-| `<leader>dL` | Reload the cached `launch.json` |
+| `<leader>dL` | Reload the cached `launch.json` + clear session picks |
 
 ### Worktree switching
 
@@ -73,17 +78,27 @@ I've tried other setups. I've clicked through menus. I've dragged and dropped. I
 
 ## Debugging Go Tests Like a Grown-up
 
-The `<leader>dt` keymap doesn't just launch delve -- it reads `.vscode/launch.json` from your project root, pulls out `buildFlags`, `env`, and `envFile`, and passes them to the delve test run. Same file VSCode reads, so teammates on either editor share one config. The parsed values are cached for the nvim session (press `<leader>dL` to reload after editing).
+The `<leader>dt` and `<leader>dm` keymaps don't just launch delve — they read `launch.json` from your project, pull out `buildFlags`, `env`, `envFile` (and for main-program debug: `program`, `args`, `cwd`), and feed the resolved config to the delve run. Same file VSCode reads, so teammates on either editor share one config.
 
-Scaffolding the `launch.json` is a one-liner: run the `/go-test-env` Claude skill, answer a couple of prompts for build tags and env vars, and it writes strict JSON to `./.vscode/launch.json` (or wherever you point it). Existing Go configurations with the same name are replaced in place; everything else is preserved.
+**Multi-config picker.** If `launch.json` has more than one `type=go, mode=test` (or `mode=debug`) entry — e.g., one per `cmd/*` entry point, or separate test configs for different build tags — you get a `vim.ui.select` picker on first use. The pick is cached for the session, keyed independently per mode. `:GoTestEnvPick [test|debug]` clears just the pick; `<leader>dL` (or `:GoTestEnvReload`) clears the file cache AND all picks.
 
-Typical flow:
+**Worktree-aware launch.json lookup.** Resolution walks upward from cwd, stopping at the first `.bare/` or `.git/` directory it encounters (project boundary). That means you can park one `launch.json` at the project root (next to `.bare/` or `.git/`) and every worktree inherits it — no copy-paste per branch. `${workspaceFolder}` still resolves to the current worktree's cwd, so `envFile = "${workspaceFolder}/.env"` gives each worktree its own env. A worktree-specific `.vscode/launch.json` overrides the shared one by winning the upward walk first.
 
-1. `/go-test-env` -- prompts for `-tags=integration,gold`, `TEST_PGURL`, etc. Writes launch.json.
+**Scaffolding.** Run the `/go-test-env` Claude skill, answer a couple of prompts for build tags and env vars, and it writes strict JSON to `./.vscode/launch.json`. Existing Go configurations with the same name are replaced in place; everything else is preserved.
+
+Typical test-debug flow:
+
+1. `/go-test-env` — prompts for `-tags=integration,gold`, `TEST_PGURL`, etc. Writes launch.json.
 2. Open the test file, drop a breakpoint with `<leader>db`, cursor inside the test.
-3. `<leader>dt` -- delve launches with the merged env, breakpoint hits, dap-view pops open.
+3. `<leader>dt` — delve launches with the merged env, breakpoint hits, dap-view pops open.
 4. `<leader>de` on any expression to live-evaluate. `<leader>dw` to watch something across frames.
 5. `<leader>dT` re-runs with the same config. `<leader>dq` terminates.
+
+Typical main-debug flow (multi-entry-point repo):
+
+1. Add one `mode=debug` entry per `cmd/*` in `launch.json` (`"program": "${workspaceFolder}/cmd/http"`, etc., each with its own `args` / `envFile`).
+2. `<leader>dm` — picker shows all main-program configs. Pick one; delve builds + launches it.
+3. Subsequent `<leader>dm` presses in the same session reuse the pick (no prompt). `:GoTestEnvPick debug` to re-prompt.
 
 ## Worktree Switching Without Rage
 

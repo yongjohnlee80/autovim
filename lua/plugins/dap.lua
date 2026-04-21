@@ -37,6 +37,26 @@ return {
       vim.fn.sign_define("DapBreakpointRejected",  { text = "○", texthl = "DiagnosticWarn",  linehl = "", numhl = "" })
       vim.fn.sign_define("DapLogPoint",            { text = "◆", texthl = "DiagnosticInfo",  linehl = "", numhl = "" })
       vim.fn.sign_define("DapStopped",             { text = "▶", texthl = "DiagnosticWarn",  linehl = "Visual", numhl = "" })
+
+      -- When DAP hits a breakpoint it calls nvim_win_set_buf on the current
+      -- window to show the source file. If focus is on a `winfixbuf` window
+      -- (neo-tree, dap-view panel, etc.) that call fails with E1513 and the
+      -- whole jump_to_frame chain explodes. Before `event_stopped` fires
+      -- `jump_to_frame`, bounce focus to a regular editing window so the
+      -- buf-swap is allowed.
+      local dap = require("dap")
+      dap.listeners.before.event_stopped["avoid-winfixbuf"] = function()
+        if not vim.wo.winfixbuf then return end
+        for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+          local buf = vim.api.nvim_win_get_buf(win)
+          if not vim.wo[win].winfixbuf and vim.bo[buf].buftype == "" then
+            vim.api.nvim_set_current_win(win)
+            return
+          end
+        end
+        -- No normal window on this tab; open one so DAP has somewhere to land.
+        vim.cmd("topleft new")
+      end
     end,
   },
 
@@ -85,9 +105,25 @@ return {
       { "<leader>da", function() require("dap-go").attach() end,       desc = "Debug: Attach to Process (delve)", ft = "go" },
       -- Merges launch.json (buildFlags/env/envFile) into the test config on first use per session.
       { "<leader>dt", function() require("utils.go_test_env").debug_test() end, desc = "Debug: Debug Go Test (+launch.json)", ft = "go" },
+      -- Launch a main-program mode=debug config from launch.json. Picker on
+      -- first use (multi-entry-point repos), session-cached until reload.
+      { "<leader>dm", function() require("utils.go_test_env").debug_main() end, desc = "Debug: Debug Main (+launch.json)", ft = "go" },
+      -- Scaffold a new mode=debug entry for the current main package into
+      -- the project-root launch.json. Prompts for name/args/env/envFile/buildFlags.
+      -- Capital M to parallel lowercase `dm` (execute) vs `dM` (create).
+      { "<leader>dM", function() require("utils.go_test_env").create_debug_entry() end, desc = "Debug: New Main entry (+launch.json)", ft = "go" },
+      -- Parallel scaffolder for test configs. No args prompt -- dap-go
+      -- fills in `-test.run ^TestName$` from the cursor at run time.
+      { "<leader>dN", function() require("utils.go_test_env").create_test_entry() end, desc = "Debug: New Test entry (+launch.json)", ft = "go" },
       { "<leader>dT", function() require("dap").run_last() end,        desc = "Debug: Run Last Debug Session",    ft = "go" },
       -- Reload launch.json after editing it mid-session.
       { "<leader>dL", function() require("utils.go_test_env").reload() end,  desc = "Debug: Reload launch.json cache", ft = "go" },
+      -- Doctor: report launch.json, project root, cwd .git, git status,
+      -- go module root, available configs. Cheap to read on demand.
+      { "<leader>dD", function() require("utils.go_test_env").doctor() end,  desc = "Debug: Doctor (diagnose launch.json / worktree)", ft = "go" },
+      -- Fix: `git worktree repair` from the current repo's common dir.
+      -- Resolves stale gitfile pointers that break buildvcs.
+      { "<leader>dF", function() require("utils.go_test_env").fix_worktree() end, desc = "Debug: Fix worktree (git worktree repair)", ft = "go" },
     },
     opts = {
       delve = {
