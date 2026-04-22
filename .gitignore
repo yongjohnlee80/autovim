@@ -5,6 +5,8 @@ debug
 .repro
 foo.*
 *.log
+.nvimlog
+.codex
 data
 vendor/
 launch.json
