@@ -18,8 +18,10 @@ I've tried other setups. I've clicked through menus. I've dragged and dropped. I
 - **Treesitter** -- syntax highlighting that understands your code, not just your brackets
 - **[nvim-dap](https://github.com/mfussenegger/nvim-dap) + [nvim-dap-view](https://github.com/igorlfs/nvim-dap-view) + [nvim-dap-go](https://github.com/leoluz/nvim-dap-go)** -- delve-powered Go debugging with a minimalist inspection panel. Breakpoints, step controls, watches, attach-to-process, and debug-test-under-cursor
 - **[worktree.nvim](https://github.com/yongjohnlee80/worktree.nvim)** -- in-editor worktree switcher I wrote. Hops between repos/worktrees under the directory you opened nvim in, with safety rails on add/remove and ghost-buffer cleanup. Comes with a lualine component and optional LSP re-anchor on switch
-- **`utils.go_test_env`** -- reads `.vscode/launch.json` and merges `buildFlags` / `env` / `envFile` into `<leader>dt` so VSCode and Neovim share one source of truth for test debugging. Cached per session
+- **[gobugger.nvim](https://github.com/yongjohnlee80/gobugger.nvim)** -- another plugin I wrote. Opinionated Go debugger: launch.json-driven, worktree-aware, delve-integrated, dap-view as the UI. Picker with session cache, scaffolder for new test/main entries, doctor command for diagnosing build/worktree issues
 - **[lazysql](https://github.com/jorgerojas26/lazysql)** -- a TUI SQL client hoisted into a floating window via `snacks.terminal`. Pre-configured connections, one keystroke to toggle, and the process stays alive between toggles so you don't pay the connection cost twice
+- **[glow.nvim](https://github.com/ellisonleao/glow.nvim)** -- floating markdown preview powered by `charmbracelet/glow`. `<leader>mp` on any `*.md` file, full ANSI colors because I forced `CLICOLOR_FORCE=1` so termenv stops stripping them
+- **Floating terminals via `snacks.terminal`** -- four toggleable floating terminals on `F1`–`F4`, each with its own persistent shell. Works from normal mode *and* terminal mode, so you can bounce between them without juggling `<C-\\><C-n>` every time
 - **11 colorschemes** -- because choosing a theme is a form of self-expression (currently rotating through them like outfits)
 
 ## Key Bindings Worth Knowing
@@ -76,29 +78,45 @@ I've tried other setups. I've clicked through menus. I've dragged and dropped. I
 |---|---|
 | `<C-q>` | Toggle the lazysql float (works in normal and terminal mode) |
 
-## Debugging Go Tests Like a Grown-up
+### Floating terminals
 
-The `<leader>dt` and `<leader>dm` keymaps don't just launch delve — they read `launch.json` from your project, pull out `buildFlags`, `env`, `envFile` (and for main-program debug: `program`, `args`, `cwd`), and feed the resolved config to the delve run. Same file VSCode reads, so teammates on either editor share one config.
+| Binding | What It Does |
+|---|---|
+| `F1` | Toggle Terminal 1 (works in normal and terminal mode) |
+| `F2` | Toggle Terminal 2 |
+| `F3` | Toggle Terminal 3 |
+| `F4` | Toggle Terminal 4 |
 
-**Multi-config picker.** If `launch.json` has more than one `type=go, mode=test` (or `mode=debug`) entry — e.g., one per `cmd/*` entry point, or separate test configs for different build tags — you get a `vim.ui.select` picker on first use. The pick is cached for the session, keyed independently per mode. `:GoTestEnvPick [test|debug]` clears just the pick; `<leader>dL` (or `:GoTestEnvReload`) clears the file cache AND all picks.
+### Markdown
+
+| Binding | What It Does |
+|---|---|
+| `<leader>mp` | Toggle glow markdown preview (markdown files only) |
+
+## Go Debugging with gobugger.nvim
+
+The `<leader>d*` bindings are backed by [gobugger.nvim](https://github.com/yongjohnlee80/gobugger.nvim), an opinionated Go debugger I extracted out of this config. `<leader>dt` / `<leader>dm` don't just launch delve — they read `launch.json` from your project, pull out `buildFlags`, `env`, `envFile` (and for main-program debug: `program`, `args`, `cwd`), feed the resolved config to the delve run, and open `dap-view` as the inspection UI. Same file VSCode reads, so teammates on either editor share one config.
+
+**Multi-config picker.** If `launch.json` has more than one `type=go, mode=test` (or `mode=debug`) entry — e.g., one per `cmd/*` entry point, or separate test configs for different build tags — you get a `vim.ui.select` picker on first use. The pick is cached for the session, keyed independently per mode. `:Gobugger pick [test|debug]` clears just the pick; `<leader>dL` (or `:Gobugger reload`) clears the file cache AND all picks.
 
 **Worktree-aware launch.json lookup.** Resolution walks upward from cwd, stopping at the first `.bare/` or `.git/` directory it encounters (project boundary). That means you can park one `launch.json` at the project root (next to `.bare/` or `.git/`) and every worktree inherits it — no copy-paste per branch. `${workspaceFolder}` still resolves to the current worktree's cwd, so `envFile = "${workspaceFolder}/.env"` gives each worktree its own env. A worktree-specific `.vscode/launch.json` overrides the shared one by winning the upward walk first.
 
-**Scaffolding.** Run the `/go-test-env` Claude skill, answer a couple of prompts for build tags and env vars, and it writes strict JSON to `./.vscode/launch.json`. Existing Go configurations with the same name are replaced in place; everything else is preserved.
+**Scaffolding.** `<leader>dN` and `<leader>dM` scaffold new `mode=test` / `mode=debug` entries into the project-root `.vscode/launch.json` using the current buffer's package. Prompts for name, args (debug only), inline env (`KEY=VAL;KEY=VAL`), envFile, and buildFlags (pre-filled with `-buildvcs=false` because bare+worktree layouts break Go's VCS stamp).
+
+**Doctor & fix.** `<leader>dD` dumps a diagnostic report — launch.json path, project root, cwd `.git` status, go module root, all available configs per mode. `<leader>dF` runs `git worktree repair` from the bare when gitfile pointers go stale.
 
 Typical test-debug flow:
 
-1. `/go-test-env` — prompts for `-tags=integration,gold`, `TEST_PGURL`, etc. Writes launch.json.
-2. Open the test file, drop a breakpoint with `<leader>db`, cursor inside the test.
-3. `<leader>dt` — delve launches with the merged env, breakpoint hits, dap-view pops open.
-4. `<leader>de` on any expression to live-evaluate. `<leader>dw` to watch something across frames.
-5. `<leader>dT` re-runs with the same config. `<leader>dq` terminates.
+1. Open a Go test file, drop a breakpoint with `<leader>db`, cursor inside the test.
+2. `<leader>dt` — delve launches (falls back to dap-go defaults if no launch.json config exists), breakpoint hits, dap-view pops open.
+3. `<leader>de` on any expression to live-evaluate. `<leader>dw` to watch something across frames.
+4. `<leader>dT` re-runs with the same config. `<leader>dq` terminates.
 
 Typical main-debug flow (multi-entry-point repo):
 
-1. Add one `mode=debug` entry per `cmd/*` in `launch.json` (`"program": "${workspaceFolder}/cmd/http"`, etc., each with its own `args` / `envFile`).
+1. `<leader>dM` in any `cmd/*/main.go` to scaffold a `mode=debug` entry (or edit `.vscode/launch.json` by hand).
 2. `<leader>dm` — picker shows all main-program configs. Pick one; delve builds + launches it.
-3. Subsequent `<leader>dm` presses in the same session reuse the pick (no prompt). `:GoTestEnvPick debug` to re-prompt.
+3. Subsequent `<leader>dm` presses in the same session reuse the pick (no prompt). `:Gobugger pick debug` to re-prompt.
 
 ## Worktree Switching Without Rage
 
@@ -156,6 +174,27 @@ Set `ReadOnly = true` on anything you'd rather not fat-finger a `DELETE` into. S
 | `q` | Quit lazysql (kills the process -- prefer `<C-q>` to hide) |
 
 Hitting `q` exits lazysql and drops the connection. Use `<C-q>` instead to tuck the float away while leaving the session alive.
+
+## Floating Terminals on F-Keys
+
+`F1` through `F4` each toggle their own floating shell, stacked with a slight cascade offset so you can eyeball which is which. Press the same key again from inside the terminal and it tucks away; press it again from anywhere and it's back, same shell, scrollback intact, any running process still going. That's `snacks.terminal.toggle` under the hood, keyed by slot number so each F-key gets its own persistent process.
+
+```
+F1 ──> Terminal 1 (78% of editor, top-left-ish)
+F2 ──> Terminal 2 (cascaded slightly right+down)
+F3 ──> Terminal 3 (cascaded more)
+F4 ──> Terminal 4 (cascaded most)
+```
+
+Keymaps work in both normal and terminal mode, so you can jump between the four without ever hitting `<C-\><C-n>`. Typical use: `F1` for `git`, `F2` for a running dev server, `F3` for ad-hoc `go test -run ...` loops, `F4` as a scratch REPL.
+
+**Why four and not on-demand unlimited?** Fixed slots mean predictable muscle memory. The cascade offset also makes it visually clear when you've peeked at two terminals one after the other — they stack slightly rather than perfectly overlap.
+
+## Markdown Preview
+
+`<leader>mp` on any `*.md` buffer pops a floating [glow](https://github.com/charmbracelet/glow) render. `q` or `<Esc>` closes it. Requires the `glow` CLI (`sudo pacman -S glow` on Arch).
+
+One subtle fix worth noting: glow.nvim pipes glow's stdout through a nvim terminal buffer rather than a real PTY, which makes `charmbracelet/termenv` strip ANSI styling by default — preview would show structural layout (headers, tables) but no colors. The config forces colors back on via `vim.env.CLICOLOR_FORCE = "1"` in the plugin's `init` hook. That's enough to get full syntax highlighting in code blocks, colored headers, inline-code backgrounds, italics — the works.
 
 ## The Stack
 
