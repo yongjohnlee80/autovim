@@ -41,17 +41,21 @@ function M.project_name(root)
   return vim.fn.fnamemodify(root, ":t")
 end
 
+function M.launcher_path()
+  return vim.fn.stdpath("config") .. "/bin/codex-nvim"
+end
+
 function M.terminal_command(opts)
   opts = opts or {}
-  if opts.force_new then
-    return { "codex", "--no-alt-screen" }
+  local cmd = { M.launcher_path() }
+  if opts.trusted then
+    cmd[#cmd + 1] = "--trusted"
   end
-
-  return {
-    vim.o.shell,
-    "-lc",
-    "if codex resume --last --no-alt-screen; then exit $?; else exec codex --no-alt-screen; fi",
-  }
+  if opts.force_new then
+    cmd[#cmd + 1] = "--new"
+  end
+  cmd[#cmd + 1] = "--no-alt-screen"
+  return cmd
 end
 
 local function relative_path(path, root)
@@ -465,6 +469,67 @@ local function load_project_file_text(root, rel_path)
   return read_file_text(abs_path) or ""
 end
 
+-- Apply `patch` inside `cwd` and return (ok, stderr). Tries strict `git apply`
+-- first; on failure, falls back to GNU `patch --fuzz=2`. Rejected hunks are
+-- surfaced through stderr rather than silently dropped (the "25 changes but
+-- only one landed" bug that happens with `-r -`).
+local function apply_patch_lenient(cwd, patch_path)
+  local git = vim
+    .system({
+      "git",
+      "apply",
+      "--recount",
+      "--whitespace=nowarn",
+      patch_path,
+    }, { cwd = cwd, text = true })
+    :wait()
+  if git.code == 0 then
+    return true, ""
+  end
+
+  if vim.fn.executable("patch") ~= 1 then
+    return false, trim(git.stderr)
+  end
+
+  local gp = vim
+    .system({
+      "patch",
+      "-p1",
+      "--forward",
+      "--fuzz=2",
+      "--no-backup-if-mismatch",
+      "-s",
+      "-i",
+      patch_path,
+    }, { cwd = cwd, text = true })
+    :wait()
+
+  -- Look for .rej files inside cwd: a nonzero patch exit plus rejects means
+  -- some hunks silently failed. Treat any rejects as failure.
+  local rejects = vim.fs.find(function(name)
+    return name:match("%.rej$")
+  end, { path = cwd, type = "file", limit = 10 })
+
+  if gp.code == 0 and vim.tbl_isempty(rejects) then
+    return true, ""
+  end
+
+  local parts = { "git apply:", trim(git.stderr) }
+  if gp.stderr and gp.stderr ~= "" then
+    parts[#parts + 1] = ""
+    parts[#parts + 1] = "patch --fuzz=2:"
+    parts[#parts + 1] = trim(gp.stderr)
+  end
+  if not vim.tbl_isempty(rejects) then
+    parts[#parts + 1] = ""
+    parts[#parts + 1] = "Rejected hunks:"
+    for _, rej in ipairs(rejects) do
+      parts[#parts + 1] = "  " .. rej
+    end
+  end
+  return false, table.concat(parts, "\n")
+end
+
 local function patch_preview_data(root, patch)
   patch = patch_payload(patch)
   local targets = patch_targets(patch)
@@ -490,21 +555,9 @@ local function patch_preview_data(root, patch)
   local patch_path = path_join(tmp_root, "codex-preview.patch")
   write_file_text(patch_path, patch)
 
-  local apply = vim
-    .system({
-      "git",
-      "apply",
-      "--recount",
-      "--unsafe-paths",
-      patch_path,
-    }, {
-      cwd = tmp_root,
-      text = true,
-    })
-    :wait()
-
-  if apply.code ~= 0 then
-    return nil, trim(apply.stderr)
+  local ok, err = apply_patch_lenient(tmp_root, patch_path)
+  if not ok then
+    return nil, err
   end
 
   local proposed_path = path_join(tmp_root, view_rel)
@@ -709,6 +762,66 @@ local function open_patch_buffer(opts)
   return buf
 end
 
+local function finalize_patch_accept(buf, tabpage, title)
+  notify(title .. " applied")
+  vim.cmd("checktime")
+  if tabpage and vim.api.nvim_tabpage_is_valid(tabpage) then
+    pcall(vim.cmd, vim.api.nvim_tabpage_get_number(tabpage) .. "tabclose")
+  elseif vim.api.nvim_buf_is_valid(buf) then
+    vim.api.nvim_buf_delete(buf, { force = true })
+  end
+end
+
+-- Fuzz fallback: GNU patch tolerates drifted hunk offsets and edited context
+-- that strict `git apply` rejects with "error: patch failed: FILE:NNN". The
+-- dry-run guard ensures we never half-apply a patch: if any hunk would
+-- reject, we stop and surface the failure so the user can fix the patch
+-- buffer before retrying. Mirrors bin/codex-patch-review's apply_patch.
+local function patch_fuzz_apply(buf, patch, root, title, tabpage, git_stderr)
+  if vim.fn.executable("patch") ~= 1 then
+    notify("Patch apply failed", vim.log.levels.ERROR)
+    open_error_output(title .. " Apply Failed", git_stderr)
+    return
+  end
+
+  local fuzz_args = function(dry_run)
+    local args = { "patch", "-p1", "--forward", "--fuzz=2", "--no-backup-if-mismatch", "-s" }
+    if dry_run then
+      args[#args + 1] = "--dry-run"
+    end
+    return args
+  end
+
+  vim.system(fuzz_args(true), { stdin = patch, text = true, cwd = root }, function(dry)
+    vim.schedule(function()
+      if dry.code ~= 0 then
+        notify("Patch would only apply partially; nothing changed", vim.log.levels.ERROR)
+        local details = trim(dry.stderr ~= "" and dry.stderr or dry.stdout)
+        if details == "" then
+          details = git_stderr
+        end
+        open_error_output(title .. " Apply Rejected", details)
+        return
+      end
+
+      vim.system(fuzz_args(false), { stdin = patch, text = true, cwd = root }, function(real)
+        vim.schedule(function()
+          if real.code ~= 0 then
+            notify("Patch apply failed", vim.log.levels.ERROR)
+            local details = trim(real.stderr)
+            if details == "" then
+              details = git_stderr
+            end
+            open_error_output(title .. " Apply Failed", details)
+            return
+          end
+          finalize_patch_accept(buf, tabpage, title .. " (with fuzz)")
+        end)
+      end)
+    end)
+  end)
+end
+
 function M.accept_patch(buf)
   buf = current_patch_buf(buf)
   if not buf then
@@ -728,47 +841,19 @@ function M.accept_patch(buf)
   vim.system({
     "git",
     "apply",
-    "--check",
     "--recount",
     "--whitespace=nowarn",
   }, {
     stdin = patch,
     text = true,
     cwd = root,
-  }, function(check)
+  }, function(apply)
     vim.schedule(function()
-      if check.code ~= 0 then
-        notify("Patch check failed", vim.log.levels.ERROR)
-        open_error_output(title .. " Check Failed", trim(check.stderr))
+      if apply.code == 0 then
+        finalize_patch_accept(buf, tabpage, title)
         return
       end
-
-      vim.system({
-        "git",
-        "apply",
-        "--recount",
-        "--whitespace=nowarn",
-      }, {
-        stdin = patch,
-        text = true,
-        cwd = root,
-      }, function(apply)
-        vim.schedule(function()
-          if apply.code ~= 0 then
-            notify("Patch apply failed", vim.log.levels.ERROR)
-            open_error_output(title .. " Apply Failed", trim(apply.stderr))
-            return
-          end
-
-          notify(title .. " applied")
-          vim.cmd("checktime")
-          if tabpage and vim.api.nvim_tabpage_is_valid(tabpage) then
-            pcall(vim.cmd, vim.api.nvim_tabpage_get_number(tabpage) .. "tabclose")
-          elseif vim.api.nvim_buf_is_valid(buf) then
-            vim.api.nvim_buf_delete(buf, { force = true })
-          end
-        end)
-      end)
+      patch_fuzz_apply(buf, patch, root, title, tabpage, trim(apply.stderr))
     end)
   end)
 end
@@ -914,12 +999,14 @@ function M.review_patch(patch, opts)
   end
 
   local root = opts.root or M.project_root()
-  if open_patch_terminal({
-    title = opts.title or "Codex Patch Review",
-    root = root,
-    source = opts.source,
-    patch = patch,
-  }) then
+  if
+    open_patch_terminal({
+      title = opts.title or "Codex Patch Review",
+      root = root,
+      source = opts.source,
+      patch = patch,
+    })
+  then
     return true
   end
 

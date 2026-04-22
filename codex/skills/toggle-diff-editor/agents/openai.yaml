@@ -1,0 +1,7 @@
+interface:
+  display_name: "Toggle Diff Editor"
+  short_description: "Prefer the shared Neovim live patch preview"
+  default_prompt: "Use $toggle-diff-editor to turn the shared Neovim live patch-preview workflow on or off for this conversation."
+
+policy:
+  allow_implicit_invocation: true

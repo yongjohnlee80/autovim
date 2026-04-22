@@ -93,13 +93,72 @@ copy_originals() {
   done < <(read_targets)
 }
 
+apply_to_preview() {
+  # Capture error output into files outside preview_root so they survive
+  # the reset we do between the strict and fuzzy apply attempts.
+  local err_git err_patch git_err patch_err rej_files patch_rc
+  err_git="$(mktemp)"
+  err_patch="$(mktemp)"
+
+  # Attempt 1 — strict git apply. --recount fixes hunk counts after an edit;
+  # --whitespace=nowarn tolerates trailing-whitespace drift.
+  if (cd "${preview_root}" && git apply --recount --whitespace=nowarn "${patch_file}") \
+      >/dev/null 2>"${err_git}"; then
+    rm -f "${err_git}" "${err_patch}"
+    return 0
+  fi
+  git_err="$(cat "${err_git}" 2>/dev/null || true)"
+
+  if ! command -v patch >/dev/null 2>&1; then
+    printf '%s\n' "${git_err}" > "${preview_root}/apply.err"
+    rm -f "${err_git}" "${err_patch}"
+    return 1
+  fi
+
+  # Attempt 2 — GNU patch with fuzz. Start from a clean copy of originals
+  # because git apply may have written partial changes before bailing.
+  # Keep the preview_root directory itself so no paths dangle.
+  find "${preview_root}" -mindepth 1 -delete 2>/dev/null || true
+  copy_originals
+  patch_rc=0
+  (cd "${preview_root}" && patch -p1 --forward --fuzz=2 --no-backup-if-mismatch \
+        -s -i "${patch_file}") >>"${err_patch}" 2>>"${err_patch}" || patch_rc=$?
+  patch_err="$(cat "${err_patch}" 2>/dev/null || true)"
+  rej_files="$(find "${preview_root}" -name '*.rej' -print 2>/dev/null || true)"
+
+  # Full success is exit 0 AND no .rej files — otherwise the fuzz pass
+  # silently dropped hunks (the "25 changes but only one showed up" case).
+  if [ "${patch_rc}" -eq 0 ] && [ -z "${rej_files}" ]; then
+    rm -f "${err_git}" "${err_patch}"
+    return 0
+  fi
+
+  {
+    printf 'git apply failed:\n'
+    printf '%s\n' "${git_err}" | sed 's/^/  /'
+    if [ -n "${patch_err}" ]; then
+      printf '\npatch --fuzz=2 output:\n'
+      printf '%s\n' "${patch_err}" | sed 's/^/  /'
+    fi
+    if [ -n "${rej_files}" ]; then
+      printf '\nHunks that could not be matched (these would be skipped):\n'
+      while IFS= read -r rej; do
+        printf '  %s\n' "${rej#${preview_root}/}"
+      done <<< "${rej_files}"
+      printf '\nFix the patch with ctrl-e so these hunks land, or reject the patch.\n'
+    fi
+  } > "${preview_root}/apply.err"
+  rm -f "${err_git}" "${err_patch}"
+  return 1
+}
+
 rebuild_preview() {
   cleanup
   preview_root="$(mktemp -d)"
   preview_error=""
   copy_originals
-  if ! (cd "${preview_root}" && git apply --recount --unsafe-paths "${patch_file}") >/dev/null 2>"${preview_root}/apply.err"; then
-    preview_error="$(cat "${preview_root}/apply.err")"
+  if ! apply_to_preview; then
+    preview_error="$(cat "${preview_root}/apply.err" 2>/dev/null || true)"
   fi
 }
 
@@ -161,11 +220,39 @@ refresh_nvim() {
 }
 
 apply_patch() {
-  (cd "${project_root}" && git apply --check --recount --whitespace=nowarn "${patch_file}") || return 1
-  (cd "${project_root}" && git apply --recount --whitespace=nowarn "${patch_file}") || return 1
+  if (cd "${project_root}" && git apply --check --recount --whitespace=nowarn "${patch_file}") 2>/dev/null; then
+    (cd "${project_root}" && git apply --recount --whitespace=nowarn "${patch_file}") || return 1
+    refresh_nvim
+    rm -f "${patch_file}"
+    printf 'Patch applied.\n'
+    return 0
+  fi
+
+  if ! command -v patch >/dev/null 2>&1; then
+    printf 'git apply rejected the patch and GNU patch is not available.\n' >&2
+    return 1
+  fi
+
+  # Dry-run first so we only touch the working tree if every hunk lands
+  # cleanly (with fuzz). This avoids a half-applied patch that would require
+  # the user to manually revert the pieces that did go in.
+  local dry_err
+  dry_err="$(mktemp)"
+  if ! (cd "${project_root}" && patch -p1 --forward --fuzz=2 --dry-run -s -i "${patch_file}") \
+        >>"${dry_err}" 2>>"${dry_err}"; then
+    printf 'Patch would only apply partially (GNU patch --fuzz=2 rejected some hunks):\n\n' >&2
+    sed 's/^/  /' "${dry_err}" >&2
+    printf 'Nothing was changed. Edit the patch (ctrl-e) or discard it (ctrl-d).\n' >&2
+    rm -f "${dry_err}"
+    return 1
+  fi
+  rm -f "${dry_err}"
+
+  (cd "${project_root}" && patch -p1 --forward --fuzz=2 --no-backup-if-mismatch \
+        -s -i "${patch_file}") || return 1
   refresh_nvim
   rm -f "${patch_file}"
-  printf 'Patch applied.\n'
+  printf 'Patch applied (with fuzz).\n'
   return 0
 }
 
