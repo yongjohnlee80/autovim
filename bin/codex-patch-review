@@ -1,0 +1,266 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+die() {
+  printf 'codex-patch-review: %s\n' "$*" >&2
+  exit 1
+}
+
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
+}
+
+usage() {
+  cat <<'EOF'
+Usage:
+  codex-patch-review <patch-file> <project-root> [title]
+
+Interactive controls:
+  ctrl-a   accept and apply the patch
+  ctrl-d   deny and discard the patch
+  ctrl-e   edit the patch file in $EDITOR
+  enter    inspect the selected file in less
+  esc      discard the patch
+EOF
+}
+
+preview_error=""
+preview_root=""
+patch_file=""
+project_root=""
+title=""
+
+cleanup() {
+  if [ -n "${preview_root}" ] && [ -d "${preview_root}" ]; then
+    rm -rf "${preview_root}"
+  fi
+}
+trap cleanup EXIT
+
+read_targets() {
+  awk '
+    /^diff --git a\// {
+      old=$3
+      new=$4
+      sub("^a/", "", old)
+      sub("^b/", "", new)
+      print old "\t" new
+    }
+  ' "${patch_file}"
+}
+
+display_path_for() {
+  local old_path="$1"
+  local new_path="$2"
+  if [ "${new_path}" != "/dev/null" ]; then
+    printf '%s\n' "${new_path}"
+  else
+    printf '%s\n' "${old_path}"
+  fi
+}
+
+map_target() {
+  local display="$1"
+  read_targets | while IFS=$'\t' read -r old_path new_path; do
+    local candidate
+    candidate="$(display_path_for "${old_path}" "${new_path}")"
+    if [ "${candidate}" = "${display}" ]; then
+      printf '%s\t%s\n' "${old_path}" "${new_path}"
+      return 0
+    fi
+  done
+}
+
+list_files() {
+  local line old_path new_path
+  while IFS=$'\t' read -r old_path new_path; do
+    display_path_for "${old_path}" "${new_path}"
+  done < <(read_targets)
+}
+
+copy_originals() {
+  local old_path new_path src dst
+  while IFS=$'\t' read -r old_path new_path; do
+    if [ "${old_path}" = "/dev/null" ]; then
+      continue
+    fi
+    src="${project_root}/${old_path}"
+    dst="${preview_root}/${old_path}"
+    if [ -f "${src}" ]; then
+      mkdir -p "$(dirname "${dst}")"
+      cp "${src}" "${dst}"
+    fi
+  done < <(read_targets)
+}
+
+rebuild_preview() {
+  cleanup
+  preview_root="$(mktemp -d)"
+  preview_error=""
+  copy_originals
+  if ! (cd "${preview_root}" && git apply --recount --unsafe-paths "${patch_file}") >/dev/null 2>"${preview_root}/apply.err"; then
+    preview_error="$(cat "${preview_root}/apply.err")"
+  fi
+}
+
+preview_file() {
+  local display="$1"
+  local mapped old_path new_path old_abs new_abs
+
+  if [ -n "${preview_error}" ]; then
+    printf 'Patch preview is invalid:\n\n%s\n' "${preview_error}"
+    return 0
+  fi
+
+  mapped="$(map_target "${display}" || true)"
+  [ -n "${mapped}" ] || {
+    printf 'No target data for %s\n' "${display}"
+    return 0
+  }
+
+  old_path="${mapped%%$'\t'*}"
+  new_path="${mapped#*$'\t'}"
+  old_abs=""
+  new_abs=""
+
+  if [ "${old_path}" != "/dev/null" ]; then
+    old_abs="${project_root}/${old_path}"
+  fi
+  if [ "${new_path}" != "/dev/null" ]; then
+    new_abs="${preview_root}/${new_path}"
+  fi
+
+  printf 'File: %s\n\n' "${display}"
+
+  if [ -z "${old_abs}" ] || [ ! -f "${old_abs}" ]; then
+    printf 'New file\n\n'
+    if [ -n "${new_abs}" ] && [ -f "${new_abs}" ]; then
+      bat --style=plain --color=always "${new_abs}" || cat "${new_abs}"
+    fi
+    return 0
+  fi
+
+  if [ -z "${new_abs}" ] || [ ! -e "${new_abs}" ]; then
+    printf 'Deleted file\n\n'
+    bat --style=plain --color=always "${old_abs}" || cat "${old_abs}"
+    return 0
+  fi
+
+  git --no-pager diff --no-index --color=always -- "${old_abs}" "${new_abs}" || true
+}
+
+inspect_file() {
+  local display="$1"
+  preview_file "${display}" | less -R
+}
+
+refresh_nvim() {
+  if [ -n "${NVIM:-}" ] && command -v nvim >/dev/null 2>&1; then
+    nvim --server "${NVIM}" --remote-send "<cmd>checktime<cr>" >/dev/null 2>&1 || true
+  fi
+}
+
+apply_patch() {
+  (cd "${project_root}" && git apply --check --recount --whitespace=nowarn "${patch_file}") || return 1
+  (cd "${project_root}" && git apply --recount --whitespace=nowarn "${patch_file}") || return 1
+  refresh_nvim
+  rm -f "${patch_file}"
+  printf 'Patch applied.\n'
+  return 0
+}
+
+deny_patch() {
+  rm -f "${patch_file}"
+  printf 'Patch discarded.\n'
+  return 0
+}
+
+main() {
+  local key="" selected="" result="" editor=""
+  need_cmd git
+  need_cmd fzf
+  need_cmd less
+  need_cmd bat
+
+  if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+    usage
+    exit 0
+  fi
+
+  [ "$#" -ge 2 ] || {
+    usage >&2
+    exit 1
+  }
+
+  patch_file="$1"
+  project_root="$2"
+  title="${3:-Codex Patch Review}"
+
+  [ -f "${patch_file}" ] || die "patch file does not exist: ${patch_file}"
+  [ -d "${project_root}" ] || die "project root does not exist: ${project_root}"
+
+  if [ "${CODEX_PATCH_REVIEW_ACTION:-}" = "accept" ]; then
+    rebuild_preview
+    apply_patch
+    exit $?
+  fi
+  if [ "${CODEX_PATCH_REVIEW_ACTION:-}" = "deny" ]; then
+    deny_patch
+    exit 0
+  fi
+
+  while true; do
+    rebuild_preview
+    result="$(
+      list_files | fzf \
+        --ansi \
+        --layout=reverse \
+        --height=100% \
+        --border \
+        --prompt="review> " \
+        --header="${title} | ctrl-a accept | ctrl-d deny | ctrl-e edit patch | enter inspect" \
+        --preview-window='right:70%:wrap' \
+        --preview="$0 --preview-file '${patch_file}' '${project_root}' '{}'" \
+        --expect=ctrl-a,ctrl-d,ctrl-e,enter
+    )" || {
+      deny_patch
+      exit 1
+    }
+
+    key="$(printf '%s\n' "${result}" | sed -n '1p')"
+    selected="$(printf '%s\n' "${result}" | sed -n '2p')"
+
+    case "${key}" in
+      ctrl-a)
+        if apply_patch; then
+          exit 0
+        fi
+        printf '\nPatch apply failed. Press enter to continue.\n' >&2
+        IFS= read -r _ || true
+        ;;
+      ctrl-d)
+        deny_patch
+        exit 1
+        ;;
+      ctrl-e)
+        editor="${EDITOR:-vi}"
+        "${editor}" "${patch_file}"
+        ;;
+      enter|"")
+        [ -n "${selected}" ] && inspect_file "${selected}"
+        ;;
+    esac
+  done
+}
+
+if [ "${1:-}" = "--preview-file" ]; then
+  patch_file="$2"
+  project_root="$3"
+  preview_root=""
+  title=""
+  rebuild_preview
+  preview_file "${4:-}"
+  exit 0
+fi
+
+main "$@"
