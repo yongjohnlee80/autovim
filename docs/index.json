@@ -1,0 +1,38 @@
+[
+  {
+    "title": "rest.nvim Feasibility For Neovim REST Client Workflow",
+    "abstract": "Feasibility analysis of using `rest.nvim` as the Neovim-native REST client. Conclusion: strong fit for in-editor automation and acceptable response UI, but no native OpenAPI 3 ingestion path was identified. The best path is to treat `.http` files as the operational format and add a generator layer, not rely on rest.nvim itself to import specs.",
+    "filepath": "design-decisions/2026-04-22-rest-nvim-feasibility.md",
+    "category": "design-decisions",
+    "date": "2026-04-22",
+    "tags": [
+      "type:adr",
+      "repo:nvim",
+      "area:rest-client",
+      "feature:rest-nvim-integration",
+      "status:proposed",
+      "owner:codex",
+      "date-reviewed:2026-04-22",
+      "adr:2026-04-22"
+    ],
+    "indexed_at": "2026-04-22T22:54:14Z"
+  },
+  {
+    "title": "Posting Feasibility For Neovim REST Client Workflow",
+    "abstract": "Feasibility analysis of using `posting` as the terminal-side REST client for Neovim, driven by existing OpenAPI 3.x specs and layered request state. Conclusion: feasible for collection generation and interactive execution, but not strong enough by itself as a headless automation engine; the best fit is a hybrid workflow where Neovim generates and launches Posting collections while durable request state lives in project files.",
+    "filepath": "design-decisions/2026-04-22-posting-rest-client-feasibility.md",
+    "category": "design-decisions",
+    "date": "2026-04-22",
+    "tags": [
+      "type:adr",
+      "repo:nvim",
+      "area:rest-client",
+      "feature:posting-integration",
+      "status:proposed",
+      "owner:codex",
+      "date-reviewed:2026-04-22",
+      "adr:2026-04-22"
+    ],
+    "indexed_at": "2026-04-22T22:54:14Z"
+  }
+]

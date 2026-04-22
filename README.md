@@ -25,6 +25,20 @@ I've tried other setups. I've clicked through menus. I've dragged and dropped. I
 - **Codex Neovim bundle** -- a repo-local Codex wrapper plus bundled `shell` and `toggle-diff-editor` skills. `F5` toggles slot-5 Codex (safe by default), `<A-s>` / `<A-t>` swap slot 5 into safe / trusted mode, and the launcher prints a short welcome note with the diff-editor hint
 - **11 colorschemes** -- because choosing a theme is a form of self-expression (currently rotating through them like outfits)
 
+## Dependencies
+
+Two external binaries this config relies on that don't install themselves through Lazy or Mason:
+
+- **`lua51`** — Lua 5.1 interpreter + C headers. `rest.nvim` v3 builds a `tree-sitter-http` luarocks rock on first load and needs `/usr/bin/lua5.1` plus `lua.h` on disk, even though Neovim itself runs on luajit. Without it, `:Lazy build rest.nvim` fails with `Failed finding Lua header lua.h`.
+- **`lazysql`** — the TUI SQL client wired to `<C-q>`. The Neovim side is just a `snacks.terminal` toggle; the binary has to be on your `$PATH`.
+
+| Tool | Arch | macOS |
+|---|---|---|
+| `lua51` | `yay -S lua51` (AUR) | `brew install lua@5.1` |
+| `lazysql` | `yay -S lazysql-bin` (AUR) | `go install github.com/jorgerojas26/lazysql@latest` |
+
+After installing `lua51`, run `:Lazy build rest.nvim` in Neovim to (re)build the plugin's rocks. Connection setup for `lazysql` lives in [SQL Without Leaving Neovim](#sql-without-leaving-neovim).
+
 ## Key Bindings Worth Knowing
 
 ### Editing & Claude
