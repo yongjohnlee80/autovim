@@ -1,10 +1,10 @@
 return {
   {
     "yongjohnlee80/worktree.nvim",
-    -- Caret range: accept any 0.2.x patch/minor but lock out 0.3.0+ which
+    -- Caret range: accept any 0.3.x patch/minor but lock out 0.4.0+ which
     -- may ship breaking changes. Bump the lower bound after releasing a
     -- feature you want pinned.
-    version = "^0.2.2",
+    version = "^0.3.1",
     event = "VeryLazy",
     opts = {
       -- Workspace-rooted LSPs that get stopped + re-attached when we
@@ -14,6 +14,13 @@ return {
       -- queries, so listing both is harmless.
       lsp_servers_to_restart = { "gopls", "vtsls", "tsserver" },
       bare_dir = ".git", -- match existing repos cloned with `git clone --bare <url> .git`
+      integrations = {
+        -- Per-worktree session save/load via folke/persistence.nvim:
+        -- every <leader>gw / <leader>gW saves the old cwd's session and
+        -- restores the new cwd's. LazyVim ships persistence.nvim as a
+        -- core plugin so no extra install is needed.
+        persistence = true,
+      },
     },
     keys = {
       { "<leader>gw", function() require("worktree").pick() end, desc = "Worktree: switch" },
