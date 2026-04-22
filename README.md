@@ -190,6 +190,16 @@ Keymaps work in both normal and terminal mode, so you can jump between the four 
 
 **Why four and not on-demand unlimited?** Fixed slots mean predictable muscle memory. The cascade offset also makes it visually clear when you've peeked at two terminals one after the other — they stack slightly rather than perfectly overlap.
 
+**Scripting terminals from outside nvim.** The window layout and slot wiring now live in `lua/utils/term_send.lua` (a thin wrapper around `Snacks.terminal.toggle` / `.get`). It also exports `send(slot, cmd)`, which injects an arbitrary shell line into a slot's underlying job — useful when a sibling tool (a Claude skill, a shell script, a build wrapper) wants to kick off a long-running command in an already-visible terminal instead of backgrounding it or printing a copy-paste line.
+
+Any subprocess of an nvim-managed terminal has `$NVIM` set to the parent's RPC socket, so the one-liner is:
+
+```
+nvim --server "$NVIM" --remote-expr 'v:lua.require("utils.term_send").send(1, "make test")'
+```
+
+`send` creates the slot if it doesn't exist, brings the window back if it was hidden, and appends a trailing newline so the command actually executes. The `/run` Claude skill uses this as a third "where to run it" option alongside background (nohup) and copy-paste — set the slot with `--term=<n>` or pick interactively.
+
 ## Markdown Preview
 
 `<leader>mp` on any `*.md` buffer pops a floating [glow](https://github.com/charmbracelet/glow) render. `q` or `<Esc>` closes it. Requires the `glow` CLI (`sudo pacman -S glow` on Arch).
