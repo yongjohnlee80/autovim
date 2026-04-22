@@ -3,6 +3,11 @@ local M = {}
 local MAX_SLOTS = 4
 local CODEX_SLOT = 5
 
+-- "safe" | "trusted" while slot 5 is running, nil when it's empty. Tracked
+-- outside Snacks because safe/trusted share slot 5 but launch with different
+-- command vectors, so Snacks would otherwise key them as two terminals.
+local codex_mode = nil
+
 local function win_opts(slot, title)
   return {
     width = 0.76,
@@ -34,27 +39,72 @@ local function validate_slot(slot)
   return slot
 end
 
--- snacks.nvim keys terminals by (cmd, cwd, count). The codex terminal is
--- spawned with a different cmd and cwd than a bare shell, so looking it up
--- with vim.o.shell (what slots 1-4 use) would miss and silently create a
--- second terminal on slot 5. This helper builds the exact spec used by the
--- initial toggle so get()/send() resolve to the same object.
-local function codex_term_spec()
+local function codex_spec(mode, opts)
+  opts = opts or {}
   local codex = require("utils.codex")
   local root = codex.project_root()
-  return codex.terminal_command(), {
-    count = CODEX_SLOT,
-    cwd = root,
-    win = win_opts(CODEX_SLOT, (" Codex: %s "):format(codex.project_name(root))),
-  }
+  local label = mode == "trusted" and "Codex (trusted)" or "Codex"
+  local cmd = codex.terminal_command({
+    trusted = mode == "trusted",
+    force_new = opts.force_new,
+  })
+  return cmd,
+    {
+      count = CODEX_SLOT,
+      cwd = root,
+      win = win_opts(CODEX_SLOT, (" %s: %s "):format(label, codex.project_name(root))),
+    }
+end
+
+-- Find whatever terminal currently sits in slot 5, regardless of the command
+-- vector it was opened with. Snacks stamps `b:snacks_terminal = { id = count,
+-- ... }` onto the buffer when the terminal is created, so a cross-mode lookup
+-- (safe <-> trusted) is just a buffer scan.
+local function find_codex_terminal()
+  if not (Snacks and Snacks.terminal) then
+    return nil
+  end
+  for _, term in ipairs(Snacks.terminal.list()) do
+    local buf = term.buf
+    if buf and vim.api.nvim_buf_is_valid(buf) then
+      local info = vim.b[buf].snacks_terminal
+      if info and info.id == CODEX_SLOT then
+        return term
+      end
+    end
+  end
+  return nil
+end
+
+local function close_codex_terminal()
+  local term = find_codex_terminal()
+  if term and term.buf and vim.api.nvim_buf_is_valid(term.buf) then
+    vim.api.nvim_buf_delete(term.buf, { force = true })
+  end
+  codex_mode = nil
+end
+
+local function ensure_codex_available()
+  local codex = require("utils.codex")
+  if vim.fn.executable(codex.launcher_path()) == 1 or vim.fn.executable("codex") == 1 then
+    return true
+  end
+  Snacks.notify.error("codex is not available on PATH")
+  return false
 end
 
 function M.get(slot, opts)
   slot = validate_slot(slot)
   opts = opts or {}
   if slot == CODEX_SLOT then
-    local cmd, topts = codex_term_spec()
-    topts.create = opts.create ~= false
+    local term = find_codex_terminal()
+    if term or opts.create == false then
+      return term
+    end
+    -- No slot-5 terminal yet: boot a fresh safe one. Matches the F5 default.
+    local cmd, topts = codex_spec("safe")
+    topts.create = true
+    codex_mode = "safe"
     return Snacks.terminal.get(cmd, topts)
   end
   return Snacks.terminal.get(vim.o.shell, {
@@ -75,19 +125,44 @@ function M.toggle(slot)
   })
 end
 
+-- opts:
+--   mode       - "safe" | "trusted"; when set, switch slot 5 to that mode
+--                (killing the existing terminal if it's in the other mode).
+--                When nil, just toggle visibility of the current slot-5
+--                terminal, defaulting to safe mode when the slot is empty.
+--   force_new  - start a new Codex session instead of resuming the last one.
 function M.toggle_codex(opts)
   opts = opts or {}
-  if vim.fn.executable("codex") ~= 1 then
-    Snacks.notify.error("codex is not available on PATH")
+  if not ensure_codex_available() then
     return nil
   end
 
-  local _, topts = codex_term_spec()
-  local codex = require("utils.codex")
-  -- force_new bypasses the `codex resume --last` shell wrapper to get a fresh
-  -- session. Subsequent send()s route via codex_term_spec()'s resume command,
-  -- so after force_new the lookup will miss until the user toggles again.
-  return Snacks.terminal.toggle(codex.terminal_command(opts), topts)
+  local requested = opts.mode
+  local effective = requested or codex_mode or "safe"
+
+  local mode_switch = requested and codex_mode and codex_mode ~= requested
+  if mode_switch or opts.force_new then
+    close_codex_terminal()
+  end
+
+  -- Snacks keys terminals by (cmd, cwd, env, count) — `Snacks.terminal.tid`
+  -- in snacks/terminal.lua. Switching worktrees changes `project_root()` and
+  -- therefore the cwd passed to `codex_spec`, so `Snacks.terminal.toggle`
+  -- would hash to a fresh id and spawn a *second* slot-5 terminal. Since we
+  -- want the single Codex instance to persist across worktrees, look up the
+  -- existing slot-5 buffer first (count-keyed, cwd-agnostic) and just
+  -- toggle its visibility. Only fall through to Snacks when slot 5 is
+  -- actually empty — e.g. first launch, or after `close_codex_terminal`
+  -- above for a mode switch / `force_new`.
+  local existing = find_codex_terminal()
+  if existing then
+    codex_mode = codex_mode or effective
+    return existing:toggle()
+  end
+
+  local cmd, topts = codex_spec(effective, { force_new = opts.force_new })
+  codex_mode = effective
+  return Snacks.terminal.toggle(cmd, topts)
 end
 
 function M.send(slot, cmd, opts)

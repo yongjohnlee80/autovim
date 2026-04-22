@@ -5,7 +5,21 @@ vim.api.nvim_create_user_command("Codex", function(opts)
   term_send.toggle_codex({ force_new = opts.bang })
 end, {
   bang = true,
-  desc = "Toggle Codex for the current project (! starts a new session)",
+  desc = "Toggle Codex in slot 5 (! starts a new session)",
+})
+
+vim.api.nvim_create_user_command("CodexSafe", function(opts)
+  term_send.toggle_codex({ mode = "safe", force_new = opts.bang })
+end, {
+  bang = true,
+  desc = "Open safe-mode Codex in slot 5, replacing any trusted session (! starts fresh)",
+})
+
+vim.api.nvim_create_user_command("CodexTrusted", function(opts)
+  term_send.toggle_codex({ mode = "trusted", force_new = opts.bang })
+end, {
+  bang = true,
+  desc = "Open trusted-mode Codex in slot 5, replacing any safe session (! starts fresh)",
 })
 
 vim.api.nvim_create_user_command("CodexExec", function(opts)
@@ -81,6 +95,8 @@ end, {
 vim.keymap.set("n", "<leader>A", "<Nop>", { desc = "AI/Codex" })
 vim.keymap.set("n", "<leader>Ac", "<cmd>Codex<cr>", { desc = "Codex Resume" })
 vim.keymap.set("n", "<leader>AN", "<cmd>Codex!<cr>", { desc = "Codex New Session" })
+vim.keymap.set("n", "<leader>As", "<cmd>CodexSafe<cr>", { desc = "Codex (safe)" })
+vim.keymap.set("n", "<leader>At", "<cmd>CodexTrusted<cr>", { desc = "Codex (trusted)" })
 vim.keymap.set("n", "<leader>Ae", function()
   codex.exec()
 end, { desc = "Codex Exec" })

@@ -22,6 +22,7 @@ I've tried other setups. I've clicked through menus. I've dragged and dropped. I
 - **[lazysql](https://github.com/jorgerojas26/lazysql)** -- a TUI SQL client hoisted into a floating window via `snacks.terminal`. Pre-configured connections, one keystroke to toggle, and the process stays alive between toggles so you don't pay the connection cost twice
 - **[glow.nvim](https://github.com/ellisonleao/glow.nvim)** -- floating markdown preview powered by `charmbracelet/glow`. `<leader>mp` on any `*.md` file, full ANSI colors because I forced `CLICOLOR_FORCE=1` so termenv stops stripping them
 - **Floating terminals via `snacks.terminal`** -- four toggleable floating terminals on `F1`–`F4`, each with its own persistent shell. Works from normal mode *and* terminal mode, so you can bounce between them without juggling `<C-\\><C-n>` every time
+- **Codex Neovim bundle** -- a repo-local Codex wrapper plus bundled `shell` and `toggle-diff-editor` skills. `F5` toggles slot-5 Codex (safe by default), `<A-s>` / `<A-t>` swap slot 5 into safe / trusted mode, and the launcher prints a short welcome note with the diff-editor hint
 - **11 colorschemes** -- because choosing a theme is a form of self-expression (currently rotating through them like outfits)
 
 ## Key Bindings Worth Knowing
@@ -36,6 +37,10 @@ I've tried other setups. I've clicked through menus. I've dragged and dropped. I
 | `<leader>ab` | Add current buffer to Claude |
 | `<leader>aa` | Accept Claude's diff |
 | `<leader>ad` | Deny Claude's diff |
+| `<leader>Ac` | Toggle Codex (resume last session) |
+| `<leader>AN` | Toggle Codex, forcing a fresh session |
+| `<leader>As` | Replace slot 5 with safe-mode Codex (default) |
+| `<leader>At` | Replace slot 5 with trusted-mode Codex |
 
 ### Debugging (Go + delve)
 
@@ -86,6 +91,7 @@ I've tried other setups. I've clicked through menus. I've dragged and dropped. I
 | `F2` | Toggle Terminal 2 |
 | `F3` | Toggle Terminal 3 |
 | `F4` | Toggle Terminal 4 |
+| `F5` | Toggle Codex |
 
 ### Markdown
 
@@ -175,6 +181,44 @@ Set `ReadOnly = true` on anything you'd rather not fat-finger a `DELETE` into. S
 
 Hitting `q` exits lazysql and drops the connection. Use `<C-q>` instead to tuck the float away while leaving the session alive.
 
+## Codex in Neovim
+
+`F5` (and the `<leader>A...` chords below) launches Codex through `bin/codex-nvim`, not raw `codex`. That wrapper does three things before Codex starts:
+
+1. bootstraps the repo-local Codex bundle from `codex/` into `~/.codex`
+2. prints a short welcome note in the terminal, including the `toggle-diff-editor on|off` reminder
+3. starts Codex with a Neovim-specific startup prompt so the session already knows about the bundled `shell` and `toggle-diff-editor` skills
+
+The bundled assets live in:
+
+```text
+codex/
+  commands/
+  skills/
+  scripts/
+```
+
+This means someone cloning the public Neovim repo gets the Neovim-specific Codex skills from the repo itself instead of needing a second private skills repo.
+
+### Safe vs trusted mode
+
+Slot `5` is shared between the two modes, so only one can be running at a time:
+
+- `F5` just toggles whatever is currently in slot `5`. If nothing is there yet it boots **safe** mode — that's the default.
+- `<leader>As` / `:CodexSafe` force slot `5` into safe mode. Codex requires user approval for anything outside the sandbox.
+- `<leader>At` / `:CodexTrusted` force slot `5` into trusted mode. The launcher adds `-a never -s danger-full-access`, which is what lets Neovim-RPC flows (`/skills/shell`, the live diff-editor review) run without prompting.
+
+Switching between the two terminates the running terminal and opens a fresh one in the requested mode — you won't end up with two Codex terminals fighting over slot 5.
+
+Add `!` to either command (`:CodexSafe!`, `:CodexTrusted!`) to skip session resume and start a new Codex session instead of picking up the last one.
+
+### Bundled skills
+
+- `shell`: sends a command into Neovim terminal slots `1` through `4`
+- `toggle-diff-editor`: tells Codex to prefer or stop preferring the shared live patch-preview workflow
+
+The launcher welcome message reminds users that `toggle-diff-editor on|off` exists so the feature is discoverable in a fresh Codex session.
+
 ## Floating Terminals on F-Keys
 
 `F1` through `F4` each toggle their own floating shell, stacked with a slight cascade offset so you can eyeball which is which. Press the same key again from inside the terminal and it tucks away; press it again from anywhere and it's back, same shell, scrollback intact, any running process still going. That's `snacks.terminal.toggle` under the hood, keyed by slot number so each F-key gets its own persistent process.
@@ -184,6 +228,7 @@ F1 ──> Terminal 1 (78% of editor, top-left-ish)
 F2 ──> Terminal 2 (cascaded slightly right+down)
 F3 ──> Terminal 3 (cascaded more)
 F4 ──> Terminal 4 (cascaded most)
+F5 ──> Codex (toggle current slot-5 owner)
 ```
 
 Keymaps work in both normal and terminal mode, so you can jump between the four without ever hitting `<C-\><C-n>`. Typical use: `F1` for `git`, `F2` for a running dev server, `F3` for ad-hoc `go test -run ...` loops, `F4` as a scratch REPL.
