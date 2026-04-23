@@ -1,5 +1,22 @@
 [
   {
+    "title": "rest.nvim OpenAPI Import",
+    "abstract": "Track the missing OpenAPI 3 import/generation layer for the Neovim `rest.nvim` workflow so specs under project docs can be converted into generated `.http` requests later.",
+    "filepath": "todo-lists/rest-nvim-openapi-import.md",
+    "category": "todo-lists",
+    "date": null,
+    "tags": [
+      "repo:nvim",
+      "area:rest-client",
+      "feature:rest-nvim-integration",
+      "type:todo-list",
+      "owner:shared",
+      "living-doc",
+      "status:planned"
+    ],
+    "indexed_at": "2026-04-23T02:14:28Z"
+  },
+  {
     "title": "rest.nvim Feasibility For Neovim REST Client Workflow",
     "abstract": "Feasibility analysis of using `rest.nvim` as the Neovim-native REST client. Conclusion: strong fit for in-editor automation and acceptable response UI, but no native OpenAPI 3 ingestion path was identified. The best path is to treat `.http` files as the operational format and add a generator layer, not rely on rest.nvim itself to import specs.",
     "filepath": "design-decisions/2026-04-22-rest-nvim-feasibility.md",
@@ -15,7 +32,7 @@
       "date-reviewed:2026-04-22",
       "adr:2026-04-22"
     ],
-    "indexed_at": "2026-04-22T22:54:14Z"
+    "indexed_at": "2026-04-23T02:14:28Z"
   },
   {
     "title": "Posting Feasibility For Neovim REST Client Workflow",
@@ -33,6 +50,6 @@
       "date-reviewed:2026-04-22",
       "adr:2026-04-22"
     ],
-    "indexed_at": "2026-04-22T22:54:14Z"
+    "indexed_at": "2026-04-23T02:14:28Z"
   }
 ]

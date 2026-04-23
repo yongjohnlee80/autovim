@@ -20,6 +20,7 @@ I've tried other setups. I've clicked through menus. I've dragged and dropped. I
 - **[worktree.nvim](https://github.com/yongjohnlee80/worktree.nvim)** -- in-editor worktree switcher I wrote. Hops between repos/worktrees under the directory you opened nvim in, with safety rails on add/remove and ghost-buffer cleanup. Comes with a lualine component and optional LSP re-anchor on switch
 - **[gobugger.nvim](https://github.com/yongjohnlee80/gobugger.nvim)** -- another plugin I wrote. Opinionated Go debugger: launch.json-driven, worktree-aware, delve-integrated, dap-view as the UI. Picker with session cache, scaffolder for new test/main entries, doctor command for diagnosing build/worktree issues
 - **[lazysql](https://github.com/jorgerojas26/lazysql)** -- a TUI SQL client hoisted into a floating window via `snacks.terminal`. Pre-configured connections, one keystroke to toggle, and the process stays alive between toggles so you don't pay the connection cost twice
+- **[kulala.nvim](https://github.com/mistweaverco/kulala.nvim)** -- HTTP client driven by `.http` files. Replaced `rest.nvim` (whose luarocks build chain was miserable on macOS). Per-project scaffold under `.rest/` via `<leader>Rs`, a single gitignored `http-client.private.env.json` with generic keys (`BASE_URL`, `USER_NAME`, `USER_PASS`, `API_KEY`), and `<leader>Rr` / `<leader>Rl` / `<leader>Ra` to run / replay / run-all
 - **[glow.nvim](https://github.com/ellisonleao/glow.nvim)** -- floating markdown preview powered by `charmbracelet/glow`. `<leader>mp` on any `*.md` file, full ANSI colors because I forced `CLICOLOR_FORCE=1` so termenv stops stripping them
 - **Floating terminals via `snacks.terminal`** -- four toggleable floating terminals on `F1`–`F4`, each with its own persistent shell. Works from normal mode *and* terminal mode, so you can bounce between them without juggling `<C-\\><C-n>` every time
 - **Codex Neovim bundle** -- a repo-local Codex wrapper plus bundled `shell` and `toggle-diff-editor` skills. `F5` toggles slot-5 Codex (safe by default), `<A-s>` / `<A-t>` swap slot 5 into safe / trusted mode, and the launcher prints a short welcome note with the diff-editor hint
@@ -27,17 +28,15 @@ I've tried other setups. I've clicked through menus. I've dragged and dropped. I
 
 ## Dependencies
 
-Two external binaries this config relies on that don't install themselves through Lazy or Mason:
+One external binary this config relies on that doesn't install itself through Lazy or Mason:
 
-- **`lua51`** — Lua 5.1 interpreter + C headers. `rest.nvim` v3 builds a `tree-sitter-http` luarocks rock on first load and needs `/usr/bin/lua5.1` plus `lua.h` on disk, even though Neovim itself runs on luajit. Without it, `:Lazy build rest.nvim` fails with `Failed finding Lua header lua.h`.
 - **`lazysql`** — the TUI SQL client wired to `<C-q>`. The Neovim side is just a `snacks.terminal` toggle; the binary has to be on your `$PATH`.
 
 | Tool | Arch | macOS |
 |---|---|---|
-| `lua51` | `yay -S lua51` (AUR) | `brew install lua@5.1` |
 | `lazysql` | `yay -S lazysql-bin` (AUR) | `go install github.com/jorgerojas26/lazysql@latest` |
 
-After installing `lua51`, run `:Lazy build rest.nvim` in Neovim to (re)build the plugin's rocks. Connection setup for `lazysql` lives in [SQL Without Leaving Neovim](#sql-without-leaving-neovim).
+Connection setup for `lazysql` lives in [SQL Without Leaving Neovim](#sql-without-leaving-neovim).
 
 ## Key Bindings Worth Knowing
 

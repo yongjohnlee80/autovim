@@ -1,55 +1,59 @@
--- Scaffolding and helpers for rest.nvim collections.
+-- Scaffolding and helpers for kulala.nvim `.http` collections.
 --
 -- Project layout created under <project>/.rest/:
 --
 --   .rest/
 --     http/
---       generated/   -- auto-generated from openapi-v3.yaml or route-*.go
---       local/       -- human-authored .http files
---     env/
---       shared.env   -- committed defaults
---       dev.env      -- committed dev overrides
---       local.env    -- gitignored secrets
+--       generated/                    -- auto-generated (openapi-v3.yaml, routes, ...)
+--       local/                        -- human-authored .http files
+--     http-client.private.env.json    -- GITIGNORED; single env file
 --     .gitignore
 --     README.md
+--
+-- Single env file keeps every project predictable: one env named `dev`
+-- holding the generic keys every app in this setup uses.
 
 local M = {}
 
+local DEFAULT_ENV_NAME = "dev"
+local ENV_FILE = "http-client.private.env.json"
+
 local GITIGNORE = [[
-# Local-only env files; never commit
-local.env
-*.local.env
+# Kulala env (holds USER_PASS / API_KEY); never commit
+http-client.private.env.json
+*.private.env.json
 
 # Saved response dumps
 **/*.response
 **/*.response.json
+
+# Cached env-target pick (per-project, set by :RestEnvSelect / generate-http skill)
+.generate-http.conf
 ]]
 
-local SHARED_ENV = [[
-# Shared, non-secret defaults. Committed.
-# Requests reference these via {{VAR}} substitution.
-BASE_URL=http://localhost:8080
-API_VERSION=v1
-]]
-
-local DEV_ENV = [[
-# Dev overrides. Committed.
-BASE_URL=http://localhost:8080
-]]
-
-local LOCAL_ENV = [[
-# Local secrets. GITIGNORED.
-# Put tokens, passwords, and any other sensitive values here.
-# API_TOKEN=
-# BASIC_AUTH_USER=
-# BASIC_AUTH_PASS=
+local PRIVATE_ENV = [[
+{
+  "dev": {
+    "BASE_URL": "http://localhost:8080",
+    "USER_NAME": "",
+    "USER_PASS": "",
+    "API_KEY": ""
+  }
+}
 ]]
 
 local SCRATCH_HTTP = [[
 ### Scratch request
-# @env ../../env/dev.env
 
 GET {{BASE_URL}}/healthz
+Accept: application/json
+
+###
+
+### Authenticated request
+
+GET {{BASE_URL}}/me
+Authorization: Bearer {{API_KEY}}
 Accept: application/json
 
 ###
@@ -58,45 +62,44 @@ Accept: application/json
 local README = [[
 # .rest
 
-Per-project REST client collection consumed by `rest.nvim`.
+Per-project HTTP request collection consumed by `kulala.nvim`.
 
 ## Layout
 
-- `http/generated/` - auto-generated from `openapi-v3.yaml` or `route-*.go`.
+- `http/generated/` - auto-generated from `openapi-v3.yaml` or route sources.
   Treat as disposable; regenerate instead of hand-editing.
 - `http/local/` - human-authored `.http` files for ad-hoc and exploratory requests.
-- `env/shared.env` - shared defaults. Committed.
-- `env/dev.env` - dev overrides. Committed.
-- `env/local.env` - secrets. **Gitignored.**
+- `http-client.private.env.json` - the single env file. **Gitignored.**
 
-## Selecting an environment
+## Env convention
 
-Pin an env per-file with a magic comment near the top:
+One env named `dev` holds the keys every app in this setup uses:
 
-    # @env ../../env/dev.env
+    BASE_URL   USER_NAME   USER_PASS   API_KEY
 
-Or switch at runtime:
+Fill in the values you need; leave the rest empty. The env is selected
+automatically on `:RestScaffold` and re-applied on `BufEnter` for any
+`.http` file under this project.
 
-    :Rest env set .rest/env/dev.env
-    :Rest env show
+To switch envs at runtime:
 
-## Secrets
-
-`env/local.env` is gitignored by the scaffolded `.gitignore`. Put tokens,
-passwords, and session cookies there. `shared.env` and `dev.env` must stay
-non-sensitive so they can be committed safely.
+    :lua require('kulala').set_selected_env('dev')
 
 ## Running a request
 
-Place the cursor inside a request block and run `:Rest run`
-(`<leader>Rr`). `:Rest last` (`<leader>Rl`) re-runs the previous request.
+Place the cursor inside a request block and run `<leader>Rr`. `<leader>Rl`
+replays the last request. `<leader>Ra` runs every request in the buffer.
+`<leader>Rt` toggles between body and headers view.
 
-## First-time setup (Arch)
+## Dependencies
 
-`rest.nvim` v3 builds luarocks dependencies on first install, and the
-`tree-sitter-http` rock needs Lua 5.1 headers. On Arch, install the AUR
-`lua51` package (`yay -S lua51`) and run `:Lazy build rest.nvim`.
+`kulala.nvim` needs only `curl` and Neovim 0.10+ (tree-sitter is built-in).
+Optional CLIs: `jq` (JSON), `xmllint` (XML), `grpcurl` (gRPC), `websocat` (WS).
 ]]
+
+-- --------------------------------------------------------------------------
+-- Low-level fs helpers
+-- --------------------------------------------------------------------------
 
 local function write_if_missing(path, contents)
   if vim.uv.fs_stat(path) then
@@ -116,7 +119,46 @@ local function mkdir_p(path)
   vim.fn.mkdir(path, "p")
 end
 
-local function project_root()
+-- --------------------------------------------------------------------------
+-- Root resolution
+-- --------------------------------------------------------------------------
+
+-- Walk up from `start` looking for an existing `.rest/` directory. Stops at
+-- $HOME or filesystem root. Returns the containing directory (the one that
+-- has `.rest/` inside it), or nil if none found.
+local function find_existing_rest_up(start)
+  local dir = start
+  if not dir or dir == "" then
+    dir = vim.fn.expand("%:p:h")
+  end
+  if not dir or dir == "" or dir == "." then
+    dir = vim.fn.getcwd()
+  end
+  local home = vim.fn.expand("~")
+  while dir and dir ~= "" and dir ~= "/" do
+    if vim.uv.fs_stat(dir .. "/.rest") then
+      return dir
+    end
+    if dir == home then break end
+    local parent = vim.fn.fnamemodify(dir, ":h")
+    if parent == dir then break end
+    dir = parent
+  end
+  return nil
+end
+
+-- Where a FRESH `.rest/` scaffold should be created when none exists
+-- upstream. Prefers the bare-git parent so one `.rest/` serves every worktree.
+local function scaffold_root()
+  local wt_lines = vim.fn.systemlist({ "git", "worktree", "list" })
+  if vim.v.shell_error == 0 then
+    for _, line in ipairs(wt_lines) do
+      local path = line:match("^(%S+)%s+%S+%s+%(bare%)$")
+      if path and path ~= "" then
+        return path
+      end
+    end
+  end
   local ok, lv = pcall(require, "lazyvim.util")
   if ok and type(lv.root) == "function" then
     local r = lv.root()
@@ -124,16 +166,96 @@ local function project_root()
       return r
     end
   end
-  local git = vim.fn.systemlist({ "git", "rev-parse", "--show-toplevel" })
-  if vim.v.shell_error == 0 and git[1] and git[1] ~= "" then
-    return git[1]
+  local top = vim.fn.systemlist({ "git", "rev-parse", "--show-toplevel" })
+  if vim.v.shell_error == 0 and top[1] and top[1] ~= "" then
+    return top[1]
   end
   return vim.fn.getcwd()
 end
 
 function M.root()
-  return project_root() .. "/.rest"
+  local existing = find_existing_rest_up()
+  if existing then
+    return existing .. "/.rest"
+  end
+  return scaffold_root() .. "/.rest"
 end
+
+-- --------------------------------------------------------------------------
+-- Cache (shared with the `generate-http` Claude skill)
+-- --------------------------------------------------------------------------
+
+local CACHE_FILE = ".generate-http.conf"
+local CACHE_KEY = "env_name"
+
+local function cache_path()
+  return M.root() .. "/" .. CACHE_FILE
+end
+
+local function read_cache()
+  local path = cache_path()
+  if not vim.uv.fs_stat(path) then return {} end
+  local out = {}
+  for line in io.lines(path) do
+    local k, v = line:match("^([%w_]+)=(.*)$")
+    if k then out[k] = v end
+  end
+  return out
+end
+
+local function write_cache(tbl)
+  local path = cache_path()
+  local fd = vim.uv.fs_open(path, "w", tonumber("644", 8))
+  if not fd then return end
+  local parts = {}
+  for k, v in pairs(tbl) do table.insert(parts, k .. "=" .. v) end
+  table.sort(parts)
+  vim.uv.fs_write(fd, table.concat(parts, "\n") .. "\n", 0)
+  vim.uv.fs_close(fd)
+end
+
+-- --------------------------------------------------------------------------
+-- Env helpers
+-- --------------------------------------------------------------------------
+
+local function env_file_path()
+  return M.root() .. "/" .. ENV_FILE
+end
+
+local function list_env_names()
+  local path = env_file_path()
+  if not vim.uv.fs_stat(path) then return {} end
+  local fd = io.open(path, "r")
+  if not fd then return {} end
+  local content = fd:read("*a")
+  fd:close()
+  local ok, decoded = pcall(vim.json.decode, content)
+  if not ok or type(decoded) ~= "table" then return {} end
+  local names = {}
+  for k, _ in pairs(decoded) do
+    if type(k) == "string" then table.insert(names, k) end
+  end
+  table.sort(names)
+  return names
+end
+
+local function apply_env(name, silent)
+  local ok, kulala = pcall(require, "kulala")
+  if ok and type(kulala.set_selected_env) == "function" then
+    kulala.set_selected_env(name)
+  else
+    -- Fallback for older kulala versions: selected env is read from
+    -- vim.g.kulala_selected_env at request time.
+    vim.g.kulala_selected_env = name
+  end
+  if not silent then
+    vim.notify("rest: env set to " .. name, vim.log.levels.INFO)
+  end
+end
+
+-- --------------------------------------------------------------------------
+-- Scaffold + scratch
+-- --------------------------------------------------------------------------
 
 function M.scaffold()
   local root = M.root()
@@ -142,7 +264,6 @@ function M.scaffold()
     root .. "/http",
     root .. "/http/generated",
     root .. "/http/local",
-    root .. "/env",
   }) do
     mkdir_p(d)
   end
@@ -150,9 +271,7 @@ function M.scaffold()
   local files = {
     { root .. "/.gitignore", GITIGNORE },
     { root .. "/README.md", README },
-    { root .. "/env/shared.env", SHARED_ENV },
-    { root .. "/env/dev.env", DEV_ENV },
-    { root .. "/env/local.env", LOCAL_ENV },
+    { root .. "/" .. ENV_FILE, PRIVATE_ENV },
     { root .. "/http/local/scratch.http", SCRATCH_HTTP },
     { root .. "/http/generated/.gitkeep", "" },
   }
@@ -163,6 +282,14 @@ function M.scaffold()
       table.insert(created, vim.fn.fnamemodify(spec[1], ":."))
     end
   end
+
+  -- Link the default env so the user doesn't have to pick after scaffold.
+  local cache = read_cache()
+  if not cache[CACHE_KEY] or cache[CACHE_KEY] == "" then
+    cache[CACHE_KEY] = DEFAULT_ENV_NAME
+    write_cache(cache)
+  end
+  apply_env(cache[CACHE_KEY], true)
 
   if #created == 0 then
     vim.notify("rest: .rest/ already scaffolded at " .. root, vim.log.levels.INFO)
@@ -184,24 +311,61 @@ function M.new_scratch()
   vim.cmd("edit " .. vim.fn.fnameescape(path))
 end
 
--- Open a :Rest env select-style picker but rooted at the project's .rest/env
--- directory, regardless of where the current buffer lives.
+-- --------------------------------------------------------------------------
+-- Env selection / display / autoload
+-- --------------------------------------------------------------------------
+
 function M.env_select()
-  local env_dir = M.root() .. "/env"
-  if vim.fn.isdirectory(env_dir) == 0 then
-    vim.notify("rest: no .rest/env directory; run :RestScaffold first", vim.log.levels.WARN)
+  if not vim.uv.fs_stat(env_file_path()) then
+    vim.notify("rest: no " .. ENV_FILE .. "; run :RestScaffold first", vim.log.levels.WARN)
     return
   end
-  local files = vim.fn.glob(env_dir .. "/*.env", false, true)
-  if #files == 0 then
-    vim.notify("rest: no env files in " .. env_dir, vim.log.levels.WARN)
+
+  local names = list_env_names()
+  if #names == 0 then
+    vim.notify("rest: " .. ENV_FILE .. " has no envs", vim.log.levels.WARN)
     return
   end
-  vim.ui.select(files, { prompt = "Rest env" }, function(choice)
+
+  vim.ui.select(names, {
+    prompt = "Rest env (cached after pick)",
+  }, function(choice)
     if not choice then return end
-    vim.cmd("Rest env set " .. vim.fn.fnameescape(choice))
-    vim.notify("rest: env set to " .. vim.fn.fnamemodify(choice, ":."), vim.log.levels.INFO)
+    apply_env(choice)
+    local cache = read_cache()
+    cache[CACHE_KEY] = choice
+    write_cache(cache)
   end)
 end
+
+function M.env_show()
+  local cache = read_cache()
+  local name = cache[CACHE_KEY]
+  if not name or name == "" then
+    name = vim.g.kulala_selected_env
+  end
+  vim.notify("rest: current env = " .. (name or "<none>"), vim.log.levels.INFO)
+end
+
+-- If the cache exists and names a real env, apply it silently.
+function M.env_autoload()
+  local cache = read_cache()
+  local name = cache[CACHE_KEY]
+  if not name or name == "" then return end
+  apply_env(name, true)
+end
+
+-- BufEnter hook: when a `.http` file under this project's `.rest/` tree opens,
+-- apply the cached env silently. Safe no-op when there's no cache.
+vim.api.nvim_create_autocmd("BufEnter", {
+  pattern = "*.http",
+  callback = function(ev)
+    local buf_path = vim.api.nvim_buf_get_name(ev.buf)
+    if buf_path == "" then return end
+    local rest_root = M.root()
+    if not buf_path:find(rest_root, 1, true) then return end
+    vim.schedule(function() M.env_autoload() end)
+  end,
+})
 
 return M
