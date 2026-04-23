@@ -56,24 +56,47 @@ local function codex_spec(mode, opts)
     }
 end
 
--- Find whatever terminal currently sits in slot 5, regardless of the command
--- vector it was opened with. Snacks stamps `b:snacks_terminal = { id = count,
--- ... }` onto the buffer when the terminal is created, so a cross-mode lookup
--- (safe <-> trusted) is just a buffer scan.
-local function find_codex_terminal()
+-- We can't rely on `b:snacks_terminal.id` to identify our slots, because
+-- Snacks stamps that with the `count` argument (see snacks/terminal.lua:111),
+-- and unrelated terminals — LazyVim's default `<c-/>` (Snacks.terminal.focus
+-- without count → `vim.v.count1` → 1), claudecode.nvim's split-side terminal
+-- (Snacks.terminal.open without count → 1) — also end up with id=1. So a
+-- buffer scan keyed on snacks_terminal.id would happily return the claude
+-- split when the user hits F1.
+--
+-- Instead, stamp our-created terminals with a private buffer-local marker
+-- `b:term_send_slot` and match on that. Claudecode / `<c-/>` / any other
+-- consumer of Snacks.terminal that doesn't touch this variable is invisible
+-- to the lookup, regardless of what count they chose.
+local SLOT_MARKER = "term_send_slot"
+
+local function find_slot_terminal(slot)
   if not (Snacks and Snacks.terminal) then
     return nil
   end
   for _, term in ipairs(Snacks.terminal.list()) do
     local buf = term.buf
     if buf and vim.api.nvim_buf_is_valid(buf) then
-      local info = vim.b[buf].snacks_terminal
-      if info and info.id == CODEX_SLOT then
+      if vim.b[buf][SLOT_MARKER] == slot then
         return term
       end
     end
   end
   return nil
+end
+
+-- Stamp a freshly-created Snacks terminal so future find_slot_terminal(slot)
+-- calls can recognize it. Idempotent; cheap to call on already-stamped bufs.
+local function stamp_slot(term, slot)
+  if term and term.buf and vim.api.nvim_buf_is_valid(term.buf) then
+    vim.b[term.buf][SLOT_MARKER] = slot
+  end
+  return term
+end
+
+-- Back-compat alias for the codex-specific call sites below.
+local function find_codex_terminal()
+  return find_slot_terminal(CODEX_SLOT)
 end
 
 local function close_codex_terminal()
@@ -105,13 +128,21 @@ function M.get(slot, opts)
     local cmd, topts = codex_spec("safe")
     topts.create = true
     codex_mode = "safe"
-    return Snacks.terminal.get(cmd, topts)
+    return stamp_slot(Snacks.terminal.get(cmd, topts), slot)
   end
-  return Snacks.terminal.get(vim.o.shell, {
+  -- Slots 1..4: look up our marked buffer before asking Snacks to hash a
+  -- new one. Same rationale as the codex path — without this, jumping
+  -- between worktrees changes cwd, re-hashes the terminal id, and spawns a
+  -- duplicate instance (killing any persistent app running inside).
+  local term = find_slot_terminal(slot)
+  if term or opts.create == false then
+    return term
+  end
+  return stamp_slot(Snacks.terminal.get(vim.o.shell, {
     count = slot,
-    create = opts.create ~= false,
+    create = true,
     win = win_opts(slot, (" Terminal %d "):format(slot)),
-  })
+  }), slot)
 end
 
 function M.toggle(slot)
@@ -119,10 +150,18 @@ function M.toggle(slot)
   if slot == CODEX_SLOT then
     return M.toggle_codex()
   end
-  return Snacks.terminal.toggle(vim.o.shell, {
+  -- Persist across worktrees: if a slot-N buffer already exists (from an
+  -- earlier cwd), toggle its visibility instead of letting Snacks re-hash
+  -- and spawn a duplicate. Only fall through to Snacks.terminal.toggle for
+  -- the very first F<N> press when nothing exists yet.
+  local existing = find_slot_terminal(slot)
+  if existing then
+    return existing:toggle()
+  end
+  return stamp_slot(Snacks.terminal.toggle(vim.o.shell, {
     count = slot,
     win = win_opts(slot, (" Terminal %d "):format(slot)),
-  })
+  }), slot)
 end
 
 -- opts:
@@ -162,7 +201,7 @@ function M.toggle_codex(opts)
 
   local cmd, topts = codex_spec(effective, { force_new = opts.force_new })
   codex_mode = effective
-  return Snacks.terminal.toggle(cmd, topts)
+  return stamp_slot(Snacks.terminal.toggle(cmd, topts), CODEX_SLOT)
 end
 
 function M.send(slot, cmd, opts)
