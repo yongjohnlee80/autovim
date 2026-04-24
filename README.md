@@ -73,14 +73,15 @@ Connection setup for `lazysql` lives in [SQL Without Leaving Neovim](#sql-withou
 | `<leader>dv` | Toggle dap-view inspection panel |
 | `<leader>dw` | Add watch expression (also visual) |
 | `<leader>de` | Evaluate under cursor / selection |
-| `<leader>da` | Attach to a running process with delve |
+| `<leader>da` | Attach to a local process via delve (PID picker; spawns dlv as a child) |
+| `<leader>dA` | Attach to an already-running `dlv --headless --listen=:PORT` server. Prompts for port (default 2345). Pure connect-only adapter — no spawn race |
 | `<leader>dt` | Debug the Go test under cursor (merges `launch.json`) |
 | `<leader>dm` | Debug a main program via `mode=debug` config in `launch.json` |
 | `<leader>dM` | Scaffold a new `mode=debug` entry into the project-root `launch.json` |
 | `<leader>dN` | Scaffold a new `mode=test` entry into the project-root `launch.json` |
 | `<leader>dD` | Doctor — report launch.json / worktree / git state |
+| `<leader>dE` | Open the last failed-start stderr in a scratch buffer (auto-captured on `<leader>dm` / `<leader>dt` failure) |
 | `<leader>dF` | Fix worktree — `git worktree repair` from the bare |
-| `<leader>dT` | Re-run the last debug session |
 | `<leader>dL` | Reload the cached `launch.json` + clear session picks |
 
 ### Worktree switching
@@ -124,12 +125,17 @@ The `<leader>d*` bindings are backed by [gobugger.nvim](https://github.com/yongj
 
 **Doctor & fix.** `<leader>dD` dumps a diagnostic report — launch.json path, project root, cwd `.git` status, go module root, all available configs per mode. `<leader>dF` runs `git worktree repair` from the bare when gitfile pointers go stale.
 
+**Failed-start error capture.** When `<leader>dm` / `<leader>dt` fail to initialize (missing binary, build error, bad args, etc.), gobugger captures the adapter's stderr / console output and surfaces it as a single ERROR notify with a 600-char preview. `<leader>dE` (or `:Gobugger last-error`) opens the full buffered output in a scratch buffer for scrolling — so you don't have to dig through `~/.cache/nvim/dap.log` to find out why delve refused to start.
+
+**Two attach modes.** `<leader>da` is the PID-picker flow from `nvim-dap-go` — gobugger spawns dlv itself, attaches to a local process, and takes over. On Linux boxes with `/proc/sys/kernel/yama/ptrace_scope = 1` this needs either `sudo` or ptrace to be relaxed. `<leader>dA` complements it: when dlv was already started externally (`dlv attach <pid> --headless --listen=:2345 --accept-multiclient` in a sibling terminal, or `/run <app> --dlv`), `<leader>dA` prompts for the port and TCP-connects via a pure connect-only adapter. No subprocess, no race.
+
 Typical test-debug flow:
 
 1. Open a Go test file, drop a breakpoint with `<leader>db`, cursor inside the test.
 2. `<leader>dt` — delve launches (falls back to dap-go defaults if no launch.json config exists), breakpoint hits, dap-view pops open.
 3. `<leader>de` on any expression to live-evaluate. `<leader>dw` to watch something across frames.
-4. `<leader>dT` re-runs with the same config. `<leader>dq` terminates.
+4. `<leader>dr` re-runs with the same config. `<leader>dq` terminates.
+5. If the session didn't start at all, `<leader>dE` pops the captured stderr open.
 
 Typical main-debug flow (multi-entry-point repo):
 
