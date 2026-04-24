@@ -83,7 +83,7 @@ if [ "${force_new}" -eq 1 ]; then
   if [ "${no_alt_screen}" -eq 1 ]; then
     codex_args+=("--no-alt-screen")
   fi
-  exec codex "${codex_args[@]}" "${startup_prompt}"
+  exec codex ${codex_args[@]+"${codex_args[@]}"} "${startup_prompt}"
 fi
 
 resume_args=("resume" "--last")
@@ -91,11 +91,11 @@ if [ "${no_alt_screen}" -eq 1 ]; then
   resume_args+=("--no-alt-screen")
 fi
 
-if codex "${codex_args[@]}" "${resume_args[@]}"; then
+if codex ${codex_args[@]+"${codex_args[@]}"} "${resume_args[@]}"; then
   exit 0
 fi
 
 if [ "${no_alt_screen}" -eq 1 ]; then
   codex_args+=("--no-alt-screen")
 fi
-exec codex "${codex_args[@]}" "${startup_prompt}"
+exec codex ${codex_args[@]+"${codex_args[@]}"} "${startup_prompt}"
