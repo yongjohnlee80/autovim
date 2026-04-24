@@ -1,8 +1,1 @@
-return {
-  {
-    "LazyVim/LazyVim",
-    opts = {
-      colorscheme = "catppuccin",
-    },
-  },
-}
+../../../omarchy/current/theme/neovim.lua
