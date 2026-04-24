@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AutoVIM installer — tier 1.
+# AutoVim installer — tier 1.
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/yongjohnlee80/autovim/main/install.sh | bash
@@ -141,7 +141,7 @@ clone_config() {
     log "Backing up existing config: $NVIM_CONFIG → $backup"
     mv "$NVIM_CONFIG" "$backup"
   fi
-  log "Cloning AutoVIM ($branch branch) into $NVIM_CONFIG"
+  log "Cloning AutoVim ($branch branch) into $NVIM_CONFIG"
   git clone --branch "$branch" "$REPO" "$NVIM_CONFIG"
 }
 
@@ -159,7 +159,7 @@ main() {
   os="$(detect_os)"
   branch="${AUTOVIM_BRANCH:-$(pick_branch "$os")}"
 
-  log "AutoVIM installer"
+  log "AutoVim installer"
   log "  OS:     $os"
   log "  Branch: $branch"
   log "  Target: $NVIM_CONFIG"
@@ -174,7 +174,7 @@ main() {
 
   cat >&2 <<EOF
 
-AutoVIM installed.
+AutoVim installed.
 
 Next:
   nvim                  # launch; the AUTOVIM splash means it's wired up

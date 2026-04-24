@@ -1,6 +1,23 @@
-# Johno's Neovim Config
+# AutoVim
 
-My Neovim configuration for [Omarchy](https://omarchy.com), purpose-built for TypeScript and Go development with Claude as a first-class citizen.
+An opinionated Neovim config built around AI pair programming (Claude Code + Codex), purpose-built for TypeScript and Go, with Omarchy / macOS / Ubuntu / Fedora variants maintained out of one repo.
+
+## Installation
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/yongjohnlee80/autovim/main/install.sh | bash
+```
+
+The installer detects your OS (macOS, Arch, Debian / Ubuntu, Fedora), auto-picks the matching branch (macOS → `mac-os`, Arch + Omarchy → `omarchy`, everything else → `main`), installs baseline dependencies via your native package manager, backs up any existing `~/.config/nvim` to a timestamped `*.bak-…` directory, clones the repo, and runs a headless `Lazy sync` so your first launch is already warmed up.
+
+Override the defaults with env vars:
+
+```bash
+AUTOVIM_BRANCH=main AUTOVIM_SKIP_DEPS=1 \
+  curl -fsSL https://raw.githubusercontent.com/yongjohnlee80/autovim/main/install.sh | bash
+```
+
+`AUTOVIM_BRANCH` forces a specific branch, `AUTOVIM_REPO` installs from a fork, `AUTOVIM_SKIP_DEPS=1` skips the system-package step if you've already installed neovim (≥0.10), ripgrep, fd, fzf, git, gcc, and curl yourself.
 
 ## Why This Exists
 
