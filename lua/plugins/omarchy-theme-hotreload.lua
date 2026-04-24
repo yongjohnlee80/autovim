@@ -70,9 +70,13 @@ return {
 										vim.defer_fn(function()
 											vim.cmd.source(transparency_file)
 
-											-- Trigger UI updates for various plugins
+											-- Trigger UI updates for theme-aware plugins. Do NOT
+											-- re-fire VimEnter here -- that clobbers ad-hoc panels
+											-- (neo-tree / claudecode / bottom terminals) by re-running
+											-- every registered VimEnter autocmd on an already-running
+											-- session. ColorScheme is what theme-aware plugins listen
+											-- to; VimEnter gives us nothing extra for a theme refresh.
 											vim.api.nvim_exec_autocmds("ColorScheme", { modeline = false })
-											vim.api.nvim_exec_autocmds("VimEnter", { modeline = false })
 
 											-- Final redraw
 											vim.cmd("redraw!")
