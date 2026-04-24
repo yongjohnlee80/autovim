@@ -19,6 +19,14 @@ AUTOVIM_BRANCH=main AUTOVIM_SKIP_DEPS=1 \
 
 `AUTOVIM_BRANCH` forces a specific branch, `AUTOVIM_REPO` installs from a fork, `AUTOVIM_SKIP_DEPS=1` skips the system-package step if you've already installed neovim (≥0.10), ripgrep, fd, fzf, git, gcc, and curl yourself.
 
+> **You're on the `omarchy` branch.** This branch is tuned for Omarchy (Arch + Hyprland) and plugs into Omarchy's system theme so nvim auto-reloads its colorscheme whenever the OS theme changes. If you're not on Omarchy, pick the branch that matches your platform:
+>
+> | Branch | For | Theme handling |
+> |---|---|---|
+> | `omarchy` *(this one)* | Omarchy / Arch | `lua/plugins/theme.lua` is symlinked into `~/.config/omarchy/current/theme/neovim.lua`; `omarchy-theme-hotreload.lua` reloads the theme module on the `User LazyReload` autocmd Omarchy fires |
+> | `main` | Ubuntu, Windows, anything non-Omarchy | Static `theme.lua` + `<leader>ut` Snacks theme picker |
+> | `mac-os` | macOS | `main` plus macOS install notes and a bash-3.2-safe `bin/codex-nvim` (macOS ships GPL-2 bash 3.2) |
+
 ## Why This Exists
 
 Some people meditate. Some do yoga. I open Neovim, fire up Claude, and write Go and TypeScript until the world makes sense again. This is my happy place -- a terminal where keystrokes are cheap, feedback loops are tight, and the AI pair programmer never judges my variable names.
@@ -41,6 +49,7 @@ I've tried other setups. I've clicked through menus. I've dragged and dropped. I
 - **[md-render.nvim](https://github.com/delphinus/md-render.nvim)** -- terminal-native Markdown previewer with rich layout: tables with box-drawing borders, callouts with icons + colored bars, fenced code blocks with treesitter syntax highlighting, OSC 8 hyperlinks, and inline images / video / Mermaid diagrams via the Kitty graphics protocol. The plugin's bundled preview is a single float; this config layers a 3-slot manager (`lua/utils/md_render.lua`) on top so `<leader>ma` / `<leader>ms` / `<leader>md` host three coexisting floats — left / middle / right — for side-by-side document comparison. Replaces `glow.nvim`
 - **Floating terminals via `snacks.terminal`** -- four toggleable floating terminals on `F1`–`F4`, each with its own persistent shell. Works from normal mode *and* terminal mode, so you can bounce between them without juggling `<C-\\><C-n>` every time
 - **Codex Neovim bundle** -- a repo-local Codex wrapper plus bundled `shell` and `toggle-diff-editor` skills. `F5` toggles slot-5 Codex (safe by default), `<A-s>` / `<A-t>` swap slot 5 into safe / trusted mode, and the launcher prints a short welcome note with the diff-editor hint
+- **Omarchy theme hot-reload** *(omarchy-branch-only)* -- `lua/plugins/theme.lua` is symlinked to Omarchy's active theme file. When Omarchy switches themes (Hyprland shortcut / `omarchy-theme-set`), it rewrites that file and fires `User LazyReload`, which `omarchy-theme-hotreload.lua` listens for: unloads the theme module, clears highlights, reloads the colorscheme plugin, re-sources `plugin/after/transparency.lua`, and redraws. No nvim restart, no manual `:colorscheme` call
 - **11 colorschemes** -- because choosing a theme is a form of self-expression (currently rotating through them like outfits)
 
 ## Dependencies
