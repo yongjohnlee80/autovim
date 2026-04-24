@@ -5,7 +5,7 @@
 return {
   {
     "yongjohnlee80/gobugger.nvim",
-    version = "^0.1.2",
+    version = "^0.1.3",
     dependencies = {
       "mfussenegger/nvim-dap",
       "leoluz/nvim-dap-go",
