@@ -20,6 +20,15 @@ return {
     init = function()
       vim.filetype.add({ extension = { http = "http", rest = "http" } })
 
+      -- Kulala's parser is `kulala_http` but the filetype stays `http` so
+      -- kulala's own `ft = { "http", "rest" }` lazy trigger still fires.
+      -- Register the parser + append the queries dir to rtp eagerly (in
+      -- `init`, before lazy-load) so LazyVim's FileType autocmd finds
+      -- highlights on the FIRST .http buffer instead of the second.
+      local kulala_ts = vim.fn.stdpath("data") .. "/lazy/kulala.nvim/lua/tree-sitter"
+      vim.opt.rtp:append(kulala_ts)
+      pcall(vim.treesitter.language.register, "kulala_http", { "http", "rest" })
+
       vim.keymap.set("n", "<leader>Rs", function()
         require("utils.rest").scaffold()
       end, { desc = "Rest: scaffold .rest/" })
@@ -90,15 +99,4 @@ return {
     },
   },
 
-  -- Ensure the `http` tree-sitter parser is installed so kulala can parse
-  -- requests out of the buffer.
-  {
-    "nvim-treesitter/nvim-treesitter",
-    opts = function(_, opts)
-      opts.ensure_installed = opts.ensure_installed or {}
-      if type(opts.ensure_installed) == "table" then
-        vim.list_extend(opts.ensure_installed, { "http" })
-      end
-    end,
-  },
 }
