@@ -1,4 +1,4 @@
--- AutoVIM branding for the startup splash.
+-- AutoVim branding for the startup splash.
 --
 -- LazyVim overrides snacks.dashboard's preset.header with its own
 -- "LAZYVIM + Z's" ASCII block (see
