@@ -73,11 +73,11 @@ install_deps() {
   case "$os" in
     macos)
       command -v brew >/dev/null || die "Homebrew not found. Install it from https://brew.sh and re-run."
-      brew install neovim ripgrep fd fzf git glow
+      brew install neovim ripgrep fd fzf git
       ;;
 
     arch)
-      sudo pacman -Syu --needed --noconfirm neovim ripgrep fd fzf git gcc curl glow
+      sudo pacman -Syu --needed --noconfirm neovim ripgrep fd fzf git gcc curl
       ;;
 
     debian)
@@ -110,12 +110,10 @@ install_deps() {
         warn "Symlinked fdfind → ~/.local/bin/fd. Ensure ~/.local/bin is on your PATH."
       fi
 
-      warn "glow isn't in apt. Install manually if you want <leader>mp markdown preview: https://github.com/charmbracelet/glow#install"
       ;;
 
     fedora)
       sudo dnf install -y neovim ripgrep fd-find fzf git gcc curl
-      warn "glow isn't in dnf. Install manually if you want <leader>mp: https://github.com/charmbracelet/glow#install"
       ;;
 
     *)
