@@ -30,7 +30,6 @@ cd ~/.config/nvim
 git checkout mac-os
 
 # 2. System binaries (everything else is managed by Lazy + Mason)
-brew install glow                                       # markdown preview (<leader>mp)
 go install github.com/jorgerojas26/lazysql@latest       # TUI SQL client (<C-q>)
 
 # 3. First Neovim launch — lazy.nvim installs plugins
