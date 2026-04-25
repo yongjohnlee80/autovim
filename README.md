@@ -30,7 +30,7 @@ I've tried other setups. I've clicked through menus. I've dragged and dropped. I
 ## What's Inside
 
 - **[LazyVim](https://www.lazyvim.org/)** -- because life's too short to configure everything from scratch, but too long to use someone else's config without tweaking it
-- **[claudecode.nvim](https://github.com/anthropics/claude-code/tree/main/packages/claudecode.nvim)** -- Claude Code integration, right in the editor. `<leader>ac` and you're pair programming with an AI that actually reads your code
+- **[claudecode.nvim](https://github.com/anthropics/claude-code/tree/main/packages/claudecode.nvim)** -- Claude Code integration, right in the editor. `<leader>ac` and you're pair programming with an AI that actually reads your code. Diff panels open with a 1×1 invisible keystroke-sink float for the first 500 ms, so the Enter you were typing into another panel doesn't accidentally accept/deny the diff before you've read it
 - **LSP + Mason** -- language servers managed properly, so Go and TypeScript just work
 - **Treesitter** -- syntax highlighting that understands your code, not just your brackets
 - **[nvim-dap](https://github.com/mfussenegger/nvim-dap) + [nvim-dap-view](https://github.com/igorlfs/nvim-dap-view) + [nvim-dap-go](https://github.com/leoluz/nvim-dap-go)** -- delve-powered Go debugging with a minimalist inspection panel. Breakpoints, step controls, watches, attach-to-process, and debug-test-under-cursor
@@ -38,7 +38,7 @@ I've tried other setups. I've clicked through menus. I've dragged and dropped. I
 - **[gobugger.nvim](https://github.com/yongjohnlee80/gobugger.nvim)** -- another plugin I wrote. Opinionated Go debugger: launch.json-driven, worktree-aware, delve-integrated, dap-view as the UI. Picker with session cache, scaffolder for new test/main entries, doctor command for diagnosing build/worktree issues
 - **[lazysql](https://github.com/jorgerojas26/lazysql)** -- a TUI SQL client hoisted into a floating window via `snacks.terminal`. Pre-configured connections, one keystroke to toggle, and the process stays alive between toggles so you don't pay the connection cost twice
 - **[kulala.nvim](https://github.com/mistweaverco/kulala.nvim)** -- HTTP client driven by `.http` files. Replaced `rest.nvim` (whose luarocks build chain was miserable on macOS). Per-project scaffold under `.rest/` via `<leader>Rs`, a single gitignored `http-client.private.env.json` with generic keys (`BASE_URL`, `USER_NAME`, `USER_PASS`, `API_KEY`), and `<leader>Rr` / `<leader>Rl` / `<leader>Ra` to run / replay / run-all
-- **[glow.nvim](https://github.com/ellisonleao/glow.nvim)** -- floating markdown preview powered by `charmbracelet/glow`. `<leader>mp` on any `*.md` file, full ANSI colors because I forced `CLICOLOR_FORCE=1` so termenv stops stripping them
+- **[md-render.nvim](https://github.com/delphinus/md-render.nvim)** -- terminal-native Markdown previewer with rich layout: tables with box-drawing borders, callouts with icons + colored bars, fenced code blocks with treesitter syntax highlighting, OSC 8 hyperlinks, and inline images / video / Mermaid diagrams via the Kitty graphics protocol. The plugin's bundled preview is a single float; this config layers a 3-slot manager (`lua/utils/md_render.lua`) on top so `<leader>ma` / `<leader>ms` / `<leader>md` host three coexisting floats — left / middle / right — for side-by-side document comparison. Replaces `glow.nvim`
 - **Floating terminals via `snacks.terminal`** -- four toggleable floating terminals on `F1`–`F4`, each with its own persistent shell. Works from normal mode *and* terminal mode, so you can bounce between them without juggling `<C-\\><C-n>` every time
 - **Codex Neovim bundle** -- a repo-local Codex wrapper plus bundled `shell` and `toggle-diff-editor` skills. `F5` toggles slot-5 Codex (safe by default), `<A-s>` / `<A-t>` swap slot 5 into safe / trusted mode, and the launcher prints a short welcome note with the diff-editor hint
 - **11 colorschemes** -- because choosing a theme is a form of self-expression (currently rotating through them like outfits)
@@ -128,7 +128,10 @@ Connection setup for `lazysql` lives in [SQL Without Leaving Neovim](#sql-withou
 
 | Binding | What It Does |
 |---|---|
-| `<leader>mp` | Toggle glow markdown preview (markdown files only) |
+| `<leader>ma` / `<leader>ms` / `<leader>md` | Slot left / middle / right — focus if open, reopen with last doc, or render the current buffer (smart fallback for first use) |
+| `<leader>mA` / `<leader>mS` / `<leader>mD` | Render the current buffer into slot left / middle / right (replaces what was there) |
+| `<leader>mt` | Tab preview (full-screen) |
+| `q` / `<Esc>` / `<CR>` (inside a float) | Close that float |
 
 ## Go Debugging with gobugger.nvim
 
@@ -283,9 +286,50 @@ nvim --server "$NVIM" --remote-expr 'v:lua.require("utils.term_send").send(1, "m
 
 ## Markdown Preview
 
-`<leader>mp` on any `*.md` buffer pops a floating [glow](https://github.com/charmbracelet/glow) render. `q` or `<Esc>` closes it. Requires the `glow` CLI (`sudo pacman -S glow` on Arch).
+[md-render.nvim](https://github.com/delphinus/md-render.nvim) renders Markdown into a separate floating / tab / pager window — your editing buffer stays untouched (cf. `render-markdown.nvim`, which mutates the buffer in place). Tables get box-drawing borders, callouts get icons + colored bars, fenced code blocks pick up treesitter syntax highlighting, OSC 8 hyperlinks are clickable in compatible terminals, and inline images / video / Mermaid diagrams render via the Kitty graphics protocol.
 
-One subtle fix worth noting: glow.nvim pipes glow's stdout through a nvim terminal buffer rather than a real PTY, which makes `charmbracelet/termenv` strip ANSI styling by default — preview would show structural layout (headers, tables) but no colors. The config forces colors back on via `vim.env.CLICOLOR_FORCE = "1"` in the plugin's `init` hook. That's enough to get full syntax highlighting in code blocks, colored headers, inline-code backgrounds, italics — the works.
+### Three slots for side-by-side comparison
+
+The plugin's `MdPreview.show()` keeps a single module-level FloatWin and `close_if_valid`s it on every call, so calling it three times can't yield three coexisting floats. This config wraps the plugin's library API (`FloatWin` / `display_utils` / `preview.build_content` — exposed for embedding per the README's "Usage as a library" section) into a 3-slot manager at `lua/utils/md_render.lua`:
+
+```text
+<leader>ma ──> Slot a (left)        ┐
+<leader>ms ──> Slot s (middle)      ├── lowercase: smart "open / focus" key
+<leader>md ──> Slot d (right)       ┘
+
+<leader>mA ──> Render current → slot a   ┐
+<leader>mS ──> Render current → slot s   ├── uppercase: explicit re-render
+<leader>mD ──> Render current → slot d   ┘
+
+<leader>mt ──> Full-screen tab preview
+```
+
+The lowercase keys collapse three behaviors into one keystroke:
+
+1. Float open in that slot → jump cursor into it
+2. Float closed but slot has a remembered source → reopen it (you dismissed it earlier with `q`)
+3. Slot never used → render the current buffer (so first use just works)
+
+Uppercase keys always render the current buffer into the slot, replacing whatever was there. Together this lets you compare three documents at once: open `foo.md` and hit `<leader>mA`, switch to `bar.md` and hit `<leader>mS`, switch to `baz.md` and hit `<leader>mD`. Three coexisting floats, each ⅓ of screen width.
+
+Press `q` / `<Esc>` / `<CR>` inside any float to dismiss it (plugin default). Bring it back later with the lowercase key.
+
+### Terminal compatibility
+
+| Terminal | Status |
+|---|---|
+| Ghostty / Kitty / WezTerm | Fully verified by upstream — text + images + video + Mermaid all work |
+| iTerm2 | Not in upstream's verified list. Text rendering (tables, callouts, code blocks, OSC 8 links) works anywhere. iTerm2 3.5+ has partial Kitty graphics support, but the plugin author hasn't validated it — images / video / Mermaid are "your mileage may vary" until that's confirmed |
+
+### Optional dependencies
+
+Text rendering needs nothing beyond Neovim. The rich-media features pull in a few external tools — install only what you actually need:
+
+| Tool | Purpose | Install |
+|---|---|---|
+| `ffmpeg` | JPEG/WebP → PNG conversion, video frame extraction | `pacman -S ffmpeg` / `brew install ffmpeg` |
+| ImageMagick (`magick`) | Same conversions; ffmpeg fallback | `pacman -S imagemagick` / `brew install imagemagick` |
+| Mermaid CLI (`mmdc`) | Render Mermaid blocks (falls back to slow `npx -y` if absent) | `npm install -g @mermaid-js/mermaid-cli` |
 
 ## The Stack
 
