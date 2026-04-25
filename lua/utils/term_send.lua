@@ -225,8 +225,37 @@ function M.send(slot, cmd, opts)
     return false
   end
 
-  local suffix = opts.submit == false and "" or "\n"
-  vim.api.nvim_chan_send(chan, cmd .. suffix)
+  -- Enter emits CR on a Unix tty, which raw-mode TUIs (codex at slot 5)
+  -- watch for to submit and cooked-mode shells get translated to LF via
+  -- ICRNL. CR works everywhere as a submit byte in theory.
+  --
+  -- BUT: TUI libraries (crossterm, ratatui, prompt-toolkit, etc.) often
+  -- classify input as paste-vs-typed by byte-arrival cadence, not by
+  -- bracketed-paste markers. When we ship `cmd .. "\r"` in one
+  -- chan_send write, codex sees the whole blob — including the trailing
+  -- CR — as a single paste event and inserts it all literally into the
+  -- multi-line prompt buffer. The user then has to press Enter by hand
+  -- because only that solo keystroke registers as a real "submit."
+  --
+  -- Split the send: body first, then the submit byte after a short
+  -- defer. The gap lets the TUI close its paste event before the CR
+  -- arrives alone, and the CR is read as a typed keypress.
+  if opts.submit == false then
+    vim.api.nvim_chan_send(chan, cmd)
+    return true
+  end
+
+  vim.api.nvim_chan_send(chan, cmd)
+  vim.defer_fn(function()
+    -- Re-verify the terminal is still alive; the user may have closed
+    -- or replaced it during the delay.
+    if vim.api.nvim_buf_is_valid(term.buf) then
+      local ch = vim.b[term.buf].terminal_job_id
+      if ch then
+        vim.api.nvim_chan_send(ch, "\r")
+      end
+    end
+  end, 60)
   return true
 end
 
