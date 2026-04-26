@@ -394,14 +394,37 @@ Add `.autovim-remote.json` to your local mirror's `.gitignore` if there's anythi
 ### Recommended workflow (per session)
 
 ```
-<leader>rp         pull + auto-snapshot (the new HEAD = baseline)
-… edit, git commit, edit, git commit …
-<leader>rd         drift check (no writes)
-<leader>rs         push (refuses on drift; <leader>rp + git merge if so)
+<leader>rp         pull + auto-snapshot (HEAD = "current remote state")
+… edit files locally, no need to git commit between edits …
+<leader>rd         drift check (HEAD vs remote — local edits don't count)
+<leader>rs         push: drift check, auto-snap pre-push, rsync, auto-pull post-push
+<leader>rS         FORCE push (confirm prompt; bypasses drift gate)
 <leader>rc         (optional) reload the service on the remote
 ```
 
-The local mirror is **persistent** — keep the directory and its `.git` around between sessions. Each successful round leaves the latest commit as the next round's snapshot baseline. Deleting it forfeits drift detection and history.
+The local mirror is **persistent** — keep the directory and its `.git` around between sessions. Each successful sync (pull or push) advances `HEAD` so it always represents "last synced state in either direction." Deleting `.git/` forfeits drift detection and history.
+
+### How drift detection actually works (the 3-way reference)
+
+Drift is "did the remote change since our last sync?" — NOT "do local files differ from remote files?" The distinction matters because *of course* local files differ from remote when you've been editing them; that's the whole point of the workflow. The drift gate exists to detect a different failure mode: someone else (or some automated process) modified the remote while you were editing locally, and pushing now would silently overwrite their changes.
+
+Three references:
+
+| Reference | What it represents |
+|---|---|
+| **`git HEAD`** | Last synced state in either direction (auto-snapped after every successful pull or pre-push) |
+| **Working tree** | Current local state, including uncommitted edits |
+| **Remote** | What's on the VPS right now |
+
+`<leader>rd` and `<leader>rs`'s drift check compare **remote vs HEAD**, NOT remote vs working tree. So:
+
+- ✅ Local has unpushed edits, remote unchanged → drift check is clean → push proceeds
+- ❌ Remote has changes since last pull, local unchanged → drift detected → push refused, pull-merge required
+- ❌ Both edited concurrently → drift detected → conflict, manual resolve via git
+
+`<leader>rs` also commits a `pre-push` snap before the rsync, so `HEAD` always tracks what was last sent. That's how the model stays coherent across editing sessions: every successful push leaves `HEAD == remote`, and the next drift check uses that as its baseline.
+
+If you genuinely need to push past a drift warning (e.g., you know the remote change is something you want to overwrite — perhaps a leftover state from a prior misconfiguration), use `<leader>rS` (capital). It prompts via `vim.ui.select` to confirm; the friction is intentional.
 
 The first `<leader>rp` auto-bootstraps a git repo in the local mirror dir (if it isn't already one) and commits the pulled state as the initial snapshot. **The `.autovim-remote.json` is tracked in git on purpose** — it contains no credentials (just host + path + commands), and tracking it means cloning the mirror onto a new laptop instantly restores the workflow with no manual reconstruction. The rsync side still excludes it via the per-project `exclude` list, so the VPS never sees it. Users who want it gitignored anyway can add `.autovim-remote.json` to `.gitignore` by hand. If the mirror dir happens to be *inside* an ancestor git repo (e.g. accidentally dropped under an existing project tree), the snapshot commit is skipped with a warning — `git_state` walks up via `git rev-parse --show-toplevel` to detect this and avoid polluting the parent repo's history.
 
