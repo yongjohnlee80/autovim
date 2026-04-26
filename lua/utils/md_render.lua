@@ -211,6 +211,35 @@ function M.render_current(slot)
   open_slot(slot, vim.api.nvim_get_current_buf())
 end
 
+--- Render a markdown file at `path` into `slot`, without making it the
+--- current buffer. The file is loaded into a hidden buffer (created via
+--- `bufadd` + `bufload`) and passed to `open_slot` so its content +
+--- relative-path resolution work normally; the user's cursor / window
+--- focus are unaffected.
+---
+--- Intended entry point for external tooling (e.g. the `/document-it
+--- show <slot>` skill mode) that wants to push a path into a slot via
+--- nvim's RPC socket — call site looks like:
+---
+---   nvim --server "$NVIM" --remote-send \
+---     ":lua require('utils.md_render').render_path('a', [[<path>]])<CR>"
+---@param slot "a"|"s"|"d"
+---@param path string absolute or `~`-prefixed path to a markdown file
+function M.render_path(slot, path)
+  local resolved = vim.fn.expand(path)
+  if vim.fn.filereadable(resolved) ~= 1 then
+    vim.notify("md-render: file not readable: " .. resolved, vim.log.levels.WARN)
+    return
+  end
+  local s = ensure_slot(slot)
+  s.float_win:close_if_valid()
+  -- bufadd + bufload: creates the buffer if absent, reuses if already
+  -- loaded (cheap), populates lines without making the buffer current.
+  local bufnr = vim.fn.bufadd(resolved)
+  vim.fn.bufload(bufnr)
+  open_slot(slot, bufnr)
+end
+
 --- Focus slot `slot`. Three-way behavior:
 ---   1. Float currently open  → jump the cursor into it.
 ---   2. Float closed but slot has a remembered source → reopen with it
