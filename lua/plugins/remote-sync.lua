@@ -36,10 +36,31 @@ return {
       -- pull. Cheap to run before deciding whether to push.
       { "<leader>rd", call("drift"), desc = "Remote: drift report (no writes)" },
 
-      -- Push local → remote. Runs the drift check first and refuses to
-      -- push on drift; the right next move is `<leader>rp` to pull, resolve
-      -- with git, then retry. Force-push is `:lua require('utils.remote_sync').push({force=true})`.
-      { "<leader>rs", call("push"), desc = "Remote: push (refuses on drift)" },
+      -- Push local → remote. Runs the drift check first (compares remote
+      -- to HEAD, NOT to working tree — so unpushed local edits don't
+      -- count as drift). Refuses if remote has changed since our last
+      -- sync; the right next move is <leader>rp to pull-merge, then retry.
+      -- Auto-commits a pre-push snapshot so HEAD always reflects what
+      -- was last sent, then auto-pulls (quietly) post-push to catch any
+      -- concurrent-writer state.
+      { "<leader>rs", call("push"), desc = "Remote: push (refuses on remote drift; auto-snap before, auto-pull after)" },
+
+      -- Force-push — bypasses the drift gate. Confirms via vim.ui.select
+      -- to discourage habitual use; the gate exists for a reason.
+      { "<leader>rS", function()
+          vim.ui.select(
+            { "no, cancel", "yes, force push" },
+            { prompt = "Force push? Drift gate will be skipped — you may overwrite remote changes." },
+            function(choice)
+              if choice == "yes, force push" then
+                require("utils.remote_sync").push({ force = true })
+              else
+                vim.notify("[remote-sync] force push cancelled", vim.log.levels.INFO)
+              end
+            end
+          )
+        end,
+        desc = "Remote: FORCE push (skip drift gate; confirms first)" },
 
       -- Run the project-configured remote command (`config.command` in
       -- the JSON) over ssh. Typically a service reload after pushing

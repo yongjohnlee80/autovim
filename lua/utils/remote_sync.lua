@@ -283,16 +283,74 @@ local function git_state(root)
   return "ancestor"
 end
 
---- Pull from remote. After rsync, the local mirror is kept under git for
---- snapshot tracking:
----   * self     → commit any pulled changes as `snap <iso>`
----   * none     → `git init`, then commit (auto-bootstrap on first pull)
----   * ancestor → skip the snapshot, warn (don't pollute the parent repo)
-function M.pull()
+--- Capture the working tree as a `snap <label> <iso>` commit if it
+--- differs from HEAD. Bootstraps git on first call when state == "none".
+--- Refuses to touch git when state == "ancestor" (would pollute the
+--- parent repo's history). Calls `on_done()` exactly once when complete,
+--- regardless of which branch ran. Used by both pull (post-rsync) and
+--- push (pre-rsync) so HEAD always represents "last synced state in
+--- either direction" — which makes it the right reference for drift
+--- detection (compare remote vs HEAD, not vs working tree).
+local function maybe_commit_snap(root, label, on_done)
+  on_done = on_done or function() end
+  local state = git_state(root)
+
+  if state == "ancestor" then
+    notify("dir is inside an ancestor git repo — skipping snapshot commit (would pollute parent)", vim.log.levels.WARN)
+    on_done()
+    return
+  end
+
+  local function do_commit()
+    git(root, { "status", "--porcelain" }, function(s)
+      if s.code ~= 0 then
+        notify("`git status` failed; snapshot skipped", vim.log.levels.WARN)
+        on_done(); return
+      end
+      if s.stdout == nil or s.stdout:gsub("%s+", "") == "" then
+        -- Working tree matches HEAD; nothing to commit.
+        on_done(); return
+      end
+      git(root, { "add", "-A" }, function()
+        local msg = "snap " .. label .. " " .. os.date("!%Y-%m-%dT%H:%M:%SZ")
+        git(root, { "commit", "-m", msg }, function(c)
+          if c.code == 0 then
+            notify("snapshot: " .. msg)
+          else
+            notify("snapshot commit failed", vim.log.levels.WARN)
+          end
+          on_done()
+        end)
+      end)
+    end)
+  end
+
+  if state == "self" then
+    do_commit()
+  else  -- "none" → bootstrap
+    git(root, { "init", "--quiet" }, function(i)
+      if i.code ~= 0 then
+        notify("git init failed; snapshot skipped", vim.log.levels.WARN)
+        on_done(); return
+      end
+      notify("git init: snapshot tracking enabled in " .. root)
+      do_commit()
+    end)
+  end
+end
+
+--- Pull from remote. After rsync, captures the resulting working tree
+--- as a snap commit (via `maybe_commit_snap`) so HEAD reflects "current
+--- remote state." That HEAD becomes the baseline for the next drift
+--- comparison.
+function M.pull(opts)
+  opts = opts or {}
   local root, cfg = M.find_project()
   if not root then notify(cfg, vim.log.levels.WARN); return end
 
-  notify("pulling " .. cfg.host .. ":" .. cfg.remote_path .. " → " .. root)
+  if not opts.quiet then
+    notify("pulling " .. cfg.host .. ":" .. cfg.remote_path .. " → " .. root)
+  end
   -- -O: omit dir times (kills phantom drift from container-bumped parent
   -- mtimes). Detection flags per mode (lazy/safe/paranoid) layer on top.
   local cmd = vim.list_extend(
@@ -307,56 +365,13 @@ function M.pull()
     record(root, "pull", out.code, out.stdout, out.stderr)
     if out.code ~= 0 then
       notify("pull failed (exit " .. out.code .. "). <leader>rl for log.", vim.log.levels.ERROR)
+      if opts.on_done then opts.on_done(false) end
       return
     end
-
-    local state = git_state(root)
-    if state == "ancestor" then
-      notify("pull complete; dir is inside an ancestor git repo — skipping snapshot commit (would pollute that repo's history)", vim.log.levels.WARN)
-      return
-    end
-
-    local function do_snap()
-      git(root, { "status", "--porcelain" }, function(s)
-        if s.code ~= 0 then
-          notify("pull ok, but `git status` failed", vim.log.levels.WARN); return
-        end
-        if s.stdout == nil or s.stdout:gsub("%s+", "") == "" then
-          notify("pull complete (no changes vs HEAD — already in sync)")
-          return
-        end
-        git(root, { "add", "-A" }, function()
-          local msg = "snap " .. os.date("!%Y-%m-%dT%H:%M:%SZ")
-          git(root, { "commit", "-m", msg }, function(c)
-            if c.code == 0 then
-              notify("pull complete; snapshot committed (" .. msg .. ")")
-            else
-              notify("pull ok, but snapshot commit failed", vim.log.levels.WARN)
-            end
-          end)
-        end)
-      end)
-    end
-
-    if state == "self" then
-      do_snap()
-    else  -- "none" → bootstrap
-      git(root, { "init", "--quiet" }, function(i)
-        if i.code ~= 0 then
-          notify("pull complete; git init failed — no snapshot taken", vim.log.levels.WARN)
-          return
-        end
-        -- Note: .autovim-remote.json used to be auto-added to .gitignore here.
-        -- Reverted: tracking it in git is more useful (laptop-DR — clone the
-        -- mirror onto a new machine and the workflow resumes immediately, no
-        -- manual reconstruction). The file contains no credentials, just host
-        -- + path + commands; rsync still excludes it via the per-project
-        -- `exclude` list so the VPS never sees it. Users who want it
-        -- gitignored anyway can add the line by hand.
-        notify("git init: snapshot tracking enabled in " .. root)
-        do_snap()
-      end)
-    end
+    maybe_commit_snap(root, "pull", function()
+      if not opts.quiet then notify("pull complete") end
+      if opts.on_done then opts.on_done(true) end
+    end)
   end)
 end
 
@@ -396,26 +411,81 @@ function M.register()
   end)
 end
 
---- Drift report. `rsync -azni --checksum --dry-run` of the remote against
---- the local working tree. Empty stdout → no drift. Output lines → drift,
---- one line per file. Result captured in the per-project log.
+--- Drift report. Compares the remote against `HEAD` of the local git
+--- mirror (NOT against the working tree) — so unpushed local edits don't
+--- register as drift. The 3-way reference is:
+---
+---   HEAD          = "what was last synced (pulled or pushed)"
+---   working tree  = "current local state, with unpushed edits"
+---   remote        = "what's on the VPS right now"
+---
+--- Drift means: remote ≠ HEAD. That is, *the remote* has changed since
+--- our last sync — which is the only failure mode push needs to refuse
+--- (it would silently overwrite changes we haven't seen).
+---
+--- Implementation: extract HEAD's tree to a temp dir, then run
+--- `rsync -azni --dry-run` from remote to that temp dir. Any output is
+--- real drift. Temp dir is cleaned up before the callback fires.
+---
+--- Falls back to the old "compare to working tree" behavior when the
+--- mirror isn't a git repo (state == "none" pre-bootstrap, or
+--- "ancestor"); in those cases we have no HEAD to use as baseline.
 function M.drift(opts)
   opts = opts or {}
   local root, cfg = M.find_project()
   if not root then notify(cfg, vim.log.levels.WARN); return end
 
+  local state = git_state(root)
+  local compare_path = root .. "/"
+  local cleanup = function() end
+
+  if state == "self" then
+    -- Materialize HEAD as a tree on disk so rsync can compare against
+    -- it. `git archive HEAD | tar -x` gives us tracked files only —
+    -- exactly what HEAD represents — without involving git's own
+    -- file-format quirks.
+    local tmpdir = vim.fn.tempname()
+    vim.fn.mkdir(tmpdir, "p")
+    local rc = os.execute(string.format(
+      "git -C %s archive HEAD 2>/dev/null | tar -x -C %s 2>/dev/null",
+      vim.fn.shellescape(root), vim.fn.shellescape(tmpdir)
+    ))
+    if rc == 0 or rc == true then
+      compare_path = tmpdir .. "/"
+      cleanup = function() vim.fn.delete(tmpdir, "rf") end
+    else
+      -- HEAD doesn't exist yet (newly init'd repo with no commits)
+      -- or git archive failed. Fall through to working-tree comparison.
+      vim.fn.delete(tmpdir, "rf")
+      notify("drift: no HEAD yet — comparing remote to working tree (fallback)", vim.log.levels.INFO)
+    end
+  end
+
   -- -O kills phantom dir-mtime drift universally (the original symptom
   -- that motivated detection modes). --checksum vs stat detection is
   -- per-mode; safe/paranoid layer it on, lazy doesn't.
+  --
+  -- --no-times + --no-perms: drift compares content, not metadata.
+  --
+  -- Critical for the HEAD-comparison path: `git archive HEAD | tar -x`
+  -- extracts files with the CURRENT time as mtime and default perms
+  -- (often 755 dirs / 644 files). Without these flags every comparison
+  -- would show `.f..t......` and `.d...p.....` for every entry,
+  -- drowning out real content drift.
+  --
+  -- Drift answers "did the content drift?" — mtime/perm differences
+  -- don't represent that. The push/pull paths still preserve mtimes via
+  -- the default `-a` flag set; only drift ignores them.
   local cmd = vim.list_extend(
-    { "rsync", "-azni", "-O", "--no-owner", "--no-group", "--dry-run" },
+    { "rsync", "-azni", "-O", "--no-owner", "--no-group", "--no-times", "--no-perms", "--dry-run" },
     detection_flags(cfg, "drift")
   )
   vim.list_extend(cmd, exclude_args(cfg.exclude))
   table.insert(cmd, source_spec(cfg))
-  table.insert(cmd, dest_spec(root))
+  table.insert(cmd, compare_path)
 
   run_async(cmd, function(out)
+    cleanup()
     record(root, "drift", out.code, out.stdout, out.stderr)
     if out.code ~= 0 then
       notify("drift check failed (exit " .. out.code .. "). <leader>rl for log.", vim.log.levels.ERROR)
@@ -427,24 +497,34 @@ function M.drift(opts)
       if l ~= "" then table.insert(lines, l) end
     end
     if #lines == 0 then
-      notify("no drift — remote matches local")
+      if not opts.quiet then notify("no drift — remote matches HEAD") end
       if opts.on_done then opts.on_done(true, out) end
     else
-      notify(("drift: %d file(s) differ on remote. <leader>rl for details."):format(#lines), vim.log.levels.WARN)
+      notify(("drift: %d file(s) differ on remote vs HEAD. <leader>rl for details."):format(#lines), vim.log.levels.WARN)
       if opts.on_done then opts.on_done(false, out) end
     end
   end)
 end
 
---- Push to remote. Runs `M.drift()` first; refuses to push if drift is
---- detected (the workflow then is: <leader>rp to pull, resolve via git
---- merge, retry <leader>rs). Pass `force = true` to skip the drift gate.
+--- Push to remote. Three-phase flow:
+---
+---   1. Drift check (compare remote to HEAD). Refuses if remote has
+---      changed since our last sync — unless `force = true`.
+---   2. Commit working tree as a `snap pre-push <iso>` so HEAD captures
+---      what we're about to push.
+---   3. rsync working tree → remote, then trigger an internal pull
+---      (quiet mode) so HEAD reflects post-push remote state and the
+---      next drift check has a fresh baseline.
+---
+--- The pre-push commit is what makes the HEAD-based drift check work
+--- across editing sessions: every successful push leaves HEAD ==
+--- remote, so future edits won't trigger spurious drift.
 function M.push(opts)
   opts = opts or {}
   local root, cfg = M.find_project()
   if not root then notify(cfg, vim.log.levels.WARN); return end
 
-  local function do_push()
+  local function do_rsync()
     notify("pushing " .. root .. " → " .. cfg.host .. ":" .. cfg.remote_path)
     -- -O universal; detection-mode flags layer on. Push defaults to
     -- stat detection (lazy/safe modes) since the user just edited and
@@ -462,20 +542,47 @@ function M.push(opts)
       record(root, "push", out.code, out.stdout, out.stderr)
       if out.code ~= 0 then
         notify("push failed (exit " .. out.code .. "). <leader>rl for log.", vim.log.levels.ERROR)
-      else
-        notify("push complete")
+        return
       end
+      notify("push complete")
+      -- Quiet pull-after-push so HEAD reflects what's on remote post-push.
+      -- This is mostly a no-op in the no-other-writer case (pre-push commit
+      -- already left HEAD matching working-tree which == what we pushed),
+      -- but catches the edge case of a concurrent writer that changed
+      -- remote between our drift check and our push. Surfaces that as a
+      -- new snap commit so the user notices.
+      M.pull({ quiet = true })
     end)
   end
 
-  if opts.force then do_push(); return end
+  local function pre_push_commit_then_push()
+    maybe_commit_snap(root, "pre-push", function()
+      do_rsync()
+    end)
+  end
 
+  if opts.force then
+    if not opts.silent_force then
+      notify("FORCE push — drift gate skipped", vim.log.levels.WARN)
+    end
+    pre_push_commit_then_push()
+    return
+  end
+
+  -- Quiet drift check (we report "no drift" via the success path's
+  -- "pushing..." message instead of a separate notify).
   M.drift({
+    quiet = true,
     on_done = function(clean)
       if clean then
-        do_push()
+        pre_push_commit_then_push()
       else
-        notify("push refused — drift detected. <leader>rp to pull, then retry. (force: :lua require('utils.remote_sync').push({force=true}))", vim.log.levels.WARN)
+        notify(
+          "push refused — remote has changes you haven't pulled.\n" ..
+          "  <leader>rp  to pull and merge\n" ..
+          "  <leader>rS  to force-push (drift gate skipped — only when you're sure)",
+          vim.log.levels.WARN
+        )
       end
     end,
   })

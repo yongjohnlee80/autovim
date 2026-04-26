@@ -41,7 +41,7 @@ I've tried other setups. I've clicked through menus. I've dragged and dropped. I
 - **[md-render.nvim](https://github.com/delphinus/md-render.nvim)** -- terminal-native Markdown previewer with rich layout: tables with box-drawing borders, callouts with icons + colored bars, fenced code blocks with treesitter syntax highlighting, OSC 8 hyperlinks, and inline images / video / Mermaid diagrams via the Kitty graphics protocol. The plugin's bundled preview is a single float; this config layers a 3-slot manager (`lua/utils/md_render.lua`) on top so `<leader>ma` / `<leader>ms` / `<leader>md` host three coexisting floats — left / middle / right — for side-by-side document comparison. Replaces `glow.nvim`
 - **Floating terminals via `snacks.terminal`** -- four toggleable floating terminals on `F1`–`F4`, each with its own persistent shell. Works from normal mode *and* terminal mode, so you can bounce between them without juggling `<C-\\><C-n>` every time
 - **Codex Neovim bundle** -- a repo-local Codex wrapper plus bundled `shell` and `toggle-diff-editor` skills. `F5` toggles slot-5 Codex (safe by default), `<A-s>` / `<A-t>` swap slot 5 into safe / trusted mode, and the launcher prints a short welcome note with the diff-editor hint
-- **Remote sync (`utils.remote_sync`)** -- a local-first / git-backed workflow for editing files on a shared remote without ever logging Claude or Codex into that remote. Drop a `.autovim-remote.json` at the root of a local mirror and `<leader>rp` / `<leader>rd` / `<leader>rs` / `<leader>rc` / `<leader>rl` drive pull / drift-check / push (refuses on drift) / configured remote command / log float. See [Remote Development](#remote-development) for the workflow
+- **Remote sync (`utils.remote_sync`)** -- a local-first / git-backed workflow for editing files on a shared remote without ever logging Claude or Codex into that remote. Drop a `.autovim-remote.json` at the root of a local mirror; `<leader>rp` / `<leader>rd` / `<leader>rs` / `<leader>rS` / `<leader>rc` / `<leader>rl` drive pull / drift-check / push / force-push / configured remote command / log float. Drift detection compares **remote vs git HEAD** (not working tree), so unpushed local edits don't trigger spurious drift. See [Remote Development](#remote-development) for the workflow
 - **11 colorschemes** -- because choosing a theme is a form of self-expression (currently rotating through them like outfits)
 
 ## Dependencies
@@ -138,9 +138,10 @@ Connection setup for `lazysql` lives in [SQL Without Leaving Neovim](#sql-withou
 
 | Binding | What It Does |
 |---|---|
-| `<leader>rp` | Pull remote → local mirror (rsync); auto-`git commit` the result as a snapshot if the dir is a git repo |
-| `<leader>rd` | Drift report — read-only check (`rsync -azni --checksum --dry-run`) of whether the remote has changed since the last pull |
-| `<leader>rs` | Push local → remote (rsync); refuses if drift is detected, prompting you to `<leader>rp` and merge first |
+| `<leader>rp` | Pull remote → local mirror (rsync); auto-`git commit` the result as a snapshot. HEAD becomes "current remote state" — the baseline for the next drift comparison |
+| `<leader>rd` | Drift report — compares remote against `git HEAD` (NOT working tree). So unpushed local edits never count as drift; only *the remote* changing since your last sync does |
+| `<leader>rs` | Push local → remote: drift-check (refuses if remote drifted), commit working tree as `snap pre-push`, rsync push, quiet auto-pull. The pre-push commit means HEAD always reflects what was last sent — keeps drift detection honest across sessions |
+| `<leader>rS` | **Force push** — bypasses the drift gate. `vim.ui.select` confirms first because the gate exists for a reason (prevents silently overwriting remote changes) |
 | `<leader>rc` | Run a project-configured remote command over ssh. Reads `commands: [{name, cmd}, ...]` from the JSON; multi-entry → picker, single entry → runs directly |
 | `<leader>rl` | Show the last sync's full output in a floating window |
 | `<leader>rR` | Register a new project — wizard prompts for host / remote_path / dest_path (default: `cwd/<last-two-of-remote-path joined by ->` lowercased), creates the dir and writes a default `.autovim-remote.json` |
