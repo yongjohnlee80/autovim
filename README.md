@@ -41,6 +41,7 @@ I've tried other setups. I've clicked through menus. I've dragged and dropped. I
 - **[md-render.nvim](https://github.com/delphinus/md-render.nvim)** -- terminal-native Markdown previewer with rich layout: tables with box-drawing borders, callouts with icons + colored bars, fenced code blocks with treesitter syntax highlighting, OSC 8 hyperlinks, and inline images / video / Mermaid diagrams via the Kitty graphics protocol. The plugin's bundled preview is a single float; this config layers a 3-slot manager (`lua/utils/md_render.lua`) on top so `<leader>ma` / `<leader>ms` / `<leader>md` host three coexisting floats — left / middle / right — for side-by-side document comparison. Replaces `glow.nvim`
 - **Floating terminals via `snacks.terminal`** -- four toggleable floating terminals on `F1`–`F4`, each with its own persistent shell. Works from normal mode *and* terminal mode, so you can bounce between them without juggling `<C-\\><C-n>` every time
 - **Codex Neovim bundle** -- a repo-local Codex wrapper plus bundled `shell` and `toggle-diff-editor` skills. `F5` toggles slot-5 Codex (safe by default), `<A-s>` / `<A-t>` swap slot 5 into safe / trusted mode, and the launcher prints a short welcome note with the diff-editor hint
+- **Remote sync (`utils.remote_sync`)** -- a local-first / git-backed workflow for editing files on a shared remote without ever logging Claude or Codex into that remote. Drop a `.autovim-remote.json` at the root of a local mirror and `<leader>rp` / `<leader>rd` / `<leader>rs` / `<leader>rc` / `<leader>rl` drive pull / drift-check / push (refuses on drift) / configured remote command / log float. See [Remote Development](#remote-development) for the workflow
 - **11 colorschemes** -- because choosing a theme is a form of self-expression (currently rotating through them like outfits)
 
 ## Dependencies
@@ -132,6 +133,19 @@ Connection setup for `lazysql` lives in [SQL Without Leaving Neovim](#sql-withou
 | `<leader>mA` / `<leader>mS` / `<leader>mD` | Render the current buffer into slot left / middle / right (replaces what was there) |
 | `<leader>mt` | Tab preview (full-screen) |
 | `q` / `<Esc>` / `<CR>` (inside a float) | Close that float |
+
+### Remote development (sync-based)
+
+| Binding | What It Does |
+|---|---|
+| `<leader>rp` | Pull remote → local mirror (rsync); auto-`git commit` the result as a snapshot if the dir is a git repo |
+| `<leader>rd` | Drift report — read-only check (`rsync -azni --checksum --dry-run`) of whether the remote has changed since the last pull |
+| `<leader>rs` | Push local → remote (rsync); refuses if drift is detected, prompting you to `<leader>rp` and merge first |
+| `<leader>rc` | Run a project-configured remote command over ssh. Reads `commands: [{name, cmd}, ...]` from the JSON; multi-entry → picker, single entry → runs directly |
+| `<leader>rl` | Show the last sync's full output in a floating window |
+| `<leader>rR` | Register a new project — wizard prompts for host / remote_path / dest_path (default: `cwd/<last-two-of-remote-path joined by ->` lowercased), creates the dir and writes a default `.autovim-remote.json` |
+| `<leader>gq` | Pick a remote project (any `.autovim-remote.json` under `~/Source/Remote/` or fallbacks) and `:cd` to it. Pushes the previous cwd onto an in-memory stack |
+| `<leader>gQ` | `:cd` back to where you were before the last `<leader>gq` (LIFO; mirrors worktree.nvim's `<leader>gw` / `<leader>gW` pattern within our own keyspace) |
 
 ## Go Debugging with gobugger.nvim
 
@@ -330,6 +344,124 @@ Text rendering needs nothing beyond Neovim. The rich-media features pull in a fe
 | `ffmpeg` | JPEG/WebP → PNG conversion, video frame extraction | `pacman -S ffmpeg` / `brew install ffmpeg` |
 | ImageMagick (`magick`) | Same conversions; ffmpeg fallback | `pacman -S imagemagick` / `brew install imagemagick` |
 | Mermaid CLI (`mmdc`) | Render Mermaid blocks (falls back to slow `npx -y` if absent) | `npm install -g @mermaid-js/mermaid-cli` |
+
+## Remote Development
+
+A local-first / git-backed sync workflow for editing files on a shared remote *without* logging Claude or Codex into that remote. Nvim runs locally with full AI/LSP, files travel via rsync into a persistent local mirror, and git on the local mirror handles snapshot / drift / merge.
+
+The full architecture and rationale are in [`docs/design-decisions/2026-04-25-remote-dev-local-first-git-backed-sync.md`](docs/design-decisions/2026-04-25-remote-dev-local-first-git-backed-sync.md).
+
+### Setup per project
+
+Drop a `.autovim-remote.json` at the root of the local mirror dir:
+
+```json
+{
+  "host": "user@vps.team",
+  "remote_path": "/srv/mailcow/data/conf",
+  "exclude": [".git", "data", "logs", "node_modules"],
+  "delete": true,
+  "detection": "safe",
+  "commands": [
+    { "name": "restart", "cmd": "cd /srv/mailcow && docker compose restart postfix-mailcow" }
+  ]
+}
+```
+
+| Field | Required | What it does |
+|---|---|---|
+| `host` | yes | ssh destination (`user@host` or an alias from `~/.ssh/config`) |
+| `remote_path` | yes | Remote directory the local mirror tracks |
+| `exclude` | no | rsync `--exclude` list. Defaults exclude local metadata (`.git`, `.autovim-remote.json`, `.env`), build artifacts (`node_modules`, `vendor`, `.direnv`, `target`), OS noise (`.DS_Store`), and cert/key material (`*.pem`, `*.key`, `*.crt`, `*.cert`, `*.p12`, `*.pfx`, plus the `ssl` directory itself — covers the case where mode-700 cert dirs would error rsync's recursive scan). Override per project to expand or replace |
+| `delete` | no | Whether `<leader>rs` passes `--delete-after` (clean mirror). Default `false` (additive push) |
+| `detection` | no | One of `"lazy"` / `"safe"` / `"paranoid"` — controls how rsync decides what's changed (per-operation flag bundle). Default `"safe"`. See [Detection modes — fast push, safe pull](#detection-modes--fast-push-safe-pull) below |
+| `commands` | no | Array of `{name, cmd}` entries for `<leader>rc`. Multi-entry → picker; single entry → runs directly. See snippet below |
+
+`commands` example for a service that benefits from more than just "restart":
+
+```json
+"commands": [
+  { "name": "restart",     "cmd": "cd /home/admin/Docker/forgejo && docker compose restart forgejo" },
+  { "name": "stop",        "cmd": "cd /home/admin/Docker/forgejo && docker compose stop" },
+  { "name": "logs",        "cmd": "cd /home/admin/Docker/forgejo && docker compose logs --tail=200 forgejo" },
+  { "name": "renew-cert",  "cmd": "certbot renew && nginx -t && systemctl reload nginx" }
+]
+```
+
+Add `.autovim-remote.json` to your local mirror's `.gitignore` if there's anything host-specific in it. Without the file, every `<leader>r*` keymap notifies and no-ops — safe to mash anywhere.
+
+### Recommended workflow (per session)
+
+```
+<leader>rp         pull + auto-snapshot (the new HEAD = baseline)
+… edit, git commit, edit, git commit …
+<leader>rd         drift check (no writes)
+<leader>rs         push (refuses on drift; <leader>rp + git merge if so)
+<leader>rc         (optional) reload the service on the remote
+```
+
+The local mirror is **persistent** — keep the directory and its `.git` around between sessions. Each successful round leaves the latest commit as the next round's snapshot baseline. Deleting it forfeits drift detection and history.
+
+The first `<leader>rp` auto-bootstraps a git repo in the local mirror dir (if it isn't already one) and commits the pulled state as the initial snapshot. **The `.autovim-remote.json` is tracked in git on purpose** — it contains no credentials (just host + path + commands), and tracking it means cloning the mirror onto a new laptop instantly restores the workflow with no manual reconstruction. The rsync side still excludes it via the per-project `exclude` list, so the VPS never sees it. Users who want it gitignored anyway can add `.autovim-remote.json` to `.gitignore` by hand. If the mirror dir happens to be *inside* an ancestor git repo (e.g. accidentally dropped under an existing project tree), the snapshot commit is skipped with a warning — `git_state` walks up via `git rev-parse --show-toplevel` to detect this and avoid polluting the parent repo's history.
+
+To bootstrap a new project without typing the JSON by hand: `<leader>rR` opens a three-prompt wizard for host / remote_path / dest_path. The dest_path default is `cwd/<last-two-of-remote-path joined by ->` lowercased — e.g. `/home/admin/Docker/test` → `cwd/docker-test`, `/srv/mailcow/data/conf` → `cwd/data-conf`. The wizard creates the dir and writes a default `.autovim-remote.json`; you `:cd` in and run `<leader>rp` afterward.
+
+### Detection modes — fast push, safe pull
+
+The `detection` field in `.autovim-remote.json` picks how rsync decides what counts as a change. Three named modes; default is `"safe"`.
+
+#### Philosophy
+
+The three operations have asymmetric risk profiles, and the right detection algorithm differs by operation:
+
+- **Push is intentional.** You just edited something. You *want* the bumped mtime to signal "send this." If push detects too much (false positive), you wasted a few KB of bandwidth — recoverable. Push is fast and re-runnable.
+- **Pull is destructive on conflict.** If rsync's stat-based view says "remote file differs" because some container bumped a file's mtime, pull would silently overwrite your unpushed local edits. The cost of a false positive on pull is **lost work** — by far the most expensive failure mode in the workflow.
+- **Drift is the gate.** `<leader>rs` runs a drift check first and refuses to push on any divergence. False positives here block legitimate pushes (forcing pull-then-push or `force=true`); false negatives let you push over a remote update you didn't see.
+
+So push wants speed; pull wants safety; drift wants accuracy. The default mode (`safe`) reflects this: stat-based for push, content-based (`--checksum`) for pull and drift. You can override per-project for either extreme — `lazy` if performance matters more than safety, `paranoid` if you've seen size+mtime equality lie about content.
+
+#### The three modes
+
+| Mode | Push | Pull | Drift | When to use |
+|---|---|---|---|---|
+| **`lazy`** | stat | stat | stat | All operations trust rsync's default size+mtime detection. Fastest. Vulnerable to phantom mtime drift bumping the gate or silently overwriting on pull. Use when no service is actively writing into the mirror tree (static config snapshots, test fixtures, etc.) |
+| **`safe`** *(default)* | stat | **checksum** | **checksum** | Push trusts your intent (fast); pull and drift compare content. The right default for active service mirrors where containers constantly bump dir mtimes |
+| **`paranoid`** | checksum | checksum | checksum | Content-compare everywhere, including push. Slowest. Use when size+mtime equality has been observed to lie about content (rare; e.g., generators rewriting files in place with identical metadata) |
+
+#### What each mode actually fixes
+
+The two real-world failure modes the design was built around, and which mode prevents which:
+
+| Mode | Phantom dir-mtime drift blocks `<leader>rs`? | Phantom file-mtime drift can silently overwrite local edits on `<leader>rp`? | "Same size+mtime but different content" can be missed? |
+|---|---|---|---|
+| `lazy` | ✗ Fixed (via universal `-O`) | ⚠️ Risk remains | ⚠️ Risk remains |
+| `safe` *(default)* | ✗ Fixed | ✗ Fixed (`--checksum` on pull) | ⚠️ Risk remains on push only (rare) |
+| `paranoid` | ✗ Fixed | ✗ Fixed | ✗ Fixed (`--checksum` on push too) |
+
+The dir-mtime fix is mode-independent — `-O` is applied universally, so even `lazy` no longer reports `.d..t...... ./` in drift output. Mode choice is really about *file*-level safety on pull, not the dir-level noise.
+
+#### Universal flags (all modes)
+
+Two flag bundles are correct in *every* mode and not exposed as configuration:
+
+- **`-O` (`--omit-dir-times`)** — kills phantom drift from container-bumped parent-directory mtimes (the symptom that motivated this whole design). Directory mtimes are a side effect of file writes, not an intentional signal.
+- **`--no-owner --no-group`** — cross-user pushes can't preserve UID/GID anyway; preserving produces noise + exit-23 warnings.
+
+#### Mental model
+
+> **`lazy` says "I trust the mtimes."**
+> **`safe` says "I trust the mtimes locally; I don't trust what the remote did between syncs."**
+> **`paranoid` says "I trust nothing; check every byte."**
+
+Most active service mirrors should be `safe`. Most snapshot mirrors (cold storage, test fixtures) can be `lazy`. Almost no one needs `paranoid`.
+
+The full design rationale lives in [`docs/design-decisions/2026-04-26-rsync-detection-modes.md`](docs/design-decisions/2026-04-26-rsync-detection-modes.md).
+
+### When *not* to use this
+
+- For source code on a self-hosted git host, use normal `git push` / `git pull` — rsync is a transport, not a version-control system.
+- For huge data dirs (databases, caches, mail spools): rsync round-trips will be slow and the local mirror will balloon. The pattern is intended for service config trees and small source dirs.
+- For **disaster recovery**: the local git mirror covers configuration, not application data, secrets, or DB state. It is *not* a backup. Plan DR independently (restic/borg to off-site, scheduled DB dumps, per-service runbooks, tested restores).
 
 ## The Stack
 
