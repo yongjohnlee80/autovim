@@ -1,10 +1,13 @@
 -- md-harpoon.nvim — keymap spec.
 --
 -- Plugin source: github.com/yongjohnlee80/md-harpoon.nvim. Local working
--- copy lives at ~/Source/Projects/nvim-plugins/md-harpoon.nvim for
--- development. To work against the local copy temporarily, swap the
--- spec line below for `dir = vim.fn.expand("~/Source/Projects/nvim-plugins/md-harpoon.nvim")`
+-- copy lives at ~/Source/nvim-plugins/md-harpoon.nvim for development.
+-- To work against the local copy temporarily, swap the spec line below
+-- for `dir = vim.fn.expand("~/Source/nvim-plugins/md-harpoon.nvim")`
 -- + `name = "md-harpoon.nvim"` — lazy will use it instead of fetching.
+--
+-- `version = "^0.1.0"` (caret) auto-tracks v0.1.x patch releases without
+-- pulling a future v0.2.x. Bump deliberately when a major arrives.
 --
 -- md-harpoon is a six-slot manager built on top of `delphinus/md-render.nvim`.
 -- md-render does the actual rendering (tables, callouts, fenced code,
@@ -28,7 +31,7 @@ end
 return {
   {
     "yongjohnlee80/md-harpoon.nvim",
-    tag = "v0.1.1",
+    version = "^0.1.0",
     dependencies = {
       { "delphinus/md-render.nvim", version = "*" },
     },
