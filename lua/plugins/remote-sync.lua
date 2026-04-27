@@ -1,29 +1,26 @@
--- Remote-sync keymaps. The actual workflow — pull / drift / push / remote-cmd
--- / log — lives in `lua/utils/remote_sync.lua`. This spec is keymap-only;
--- there's no external plugin to install. Logic loads lazily on first keypress.
+-- remote-sync.nvim — keymap spec.
 --
--- The full workflow and motivation are documented in
--- docs/design-decisions/2026-04-25-remote-dev-local-first-git-backed-sync.md.
--- Quick reference: drop a `.autovim-remote.json` in any directory that's
--- the root of a service mirror, e.g.:
+-- Plugin source: github.com/yongjohnlee80/remote-sync.nvim. Local working
+-- copy lives at ~/Source/Projects/nvim-plugins/remote-sync.nvim for
+-- development. To work against the local copy temporarily, add
+-- `dir = vim.fn.expand("~/Source/Projects/nvim-plugins/remote-sync.nvim")`
+-- next to the spec line below — lazy will use it instead of fetching.
 --
---   { "host": "user@vps.team",
---     "remote_path": "/srv/mailcow/data/conf",
---     "exclude": [".git", "data", "logs"],
---     "delete": true,
---     "command": "docker compose restart postfix-mailcow" }
+-- The plugin auto-registers `:RemoteSync*` user commands; this spec only
+-- adds the keymaps. See the plugin README for the workflow and the
+-- `.autovim-remote.json` schema.
 --
--- Without that file, every keymap notifies and no-ops — safe to mash anywhere.
+-- Without an `.autovim-remote.json` somewhere in or above cwd, every keymap
+-- notifies and no-ops — safe to mash anywhere.
 
 local function call(fn)
-  return function() require("utils.remote_sync")[fn]() end
+  return function() require("remote-sync")[fn]() end
 end
 
 return {
   {
-    "remote-sync",
-    dir = vim.fn.stdpath("config"),
-    name = "remote-sync",
+    "yongjohnlee80/remote-sync.nvim",
+    tag = "v0.1.0",
     lazy = true,
     keys = {
       -- Pull remote → local mirror, then auto-`git commit` the result as
@@ -31,18 +28,15 @@ return {
       -- HEAD is what the next drift check compares against.
       { "<leader>rp", call("pull"), desc = "Remote: pull (rsync + auto-snap commit)" },
 
-      -- Drift check (read-only). Runs `rsync -azni --checksum --dry-run`;
-      -- empty output = no drift, output = remote has changes since last
-      -- pull. Cheap to run before deciding whether to push.
+      -- Drift check (read-only). Compares the remote against HEAD via a
+      -- `git archive HEAD | tar -x` materialization + dry-run rsync.
+      -- Empty output = no drift, output = remote moved under us.
       { "<leader>rd", call("drift"), desc = "Remote: drift report (no writes)" },
 
-      -- Push local → remote. Runs the drift check first (compares remote
-      -- to HEAD, NOT to working tree — so unpushed local edits don't
-      -- count as drift). Refuses if remote has changed since our last
-      -- sync; the right next move is <leader>rp to pull-merge, then retry.
-      -- Auto-commits a pre-push snapshot so HEAD always reflects what
-      -- was last sent, then auto-pulls (quietly) post-push to catch any
-      -- concurrent-writer state.
+      -- Push local → remote. Drift-gated (compares remote to HEAD, NOT to
+      -- working tree — so unpushed local edits don't count). Auto-commits
+      -- a pre-push snapshot, then auto-pulls (quietly) post-push to catch
+      -- any concurrent-writer state.
       { "<leader>rs", call("push"), desc = "Remote: push (refuses on remote drift; auto-snap before, auto-pull after)" },
 
       -- Force-push — bypasses the drift gate. Confirms via vim.ui.select
@@ -53,7 +47,7 @@ return {
             { prompt = "Force push? Drift gate will be skipped — you may overwrite remote changes." },
             function(choice)
               if choice == "yes, force push" then
-                require("utils.remote_sync").push({ force = true })
+                require("remote-sync").push({ force = true })
               else
                 vim.notify("[remote-sync] force push cancelled", vim.log.levels.INFO)
               end
@@ -62,10 +56,9 @@ return {
         end,
         desc = "Remote: FORCE push (skip drift gate; confirms first)" },
 
-      -- Run the project-configured remote command (`config.command` in
+      -- Run a project-configured remote command (`commands` array in
       -- the JSON) over ssh. Typically a service reload after pushing
-      -- config changes (e.g. `docker compose restart <svc>`). No-ops with
-      -- a notify if no command is configured.
+      -- config changes. Notifies + no-ops if no commands are configured.
       { "<leader>rc", call("run_remote_cmd"), desc = "Remote: run configured command" },
 
       -- Show the last sync's full output in a floating window. q / <Esc>
