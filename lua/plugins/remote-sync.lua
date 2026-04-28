@@ -2,9 +2,14 @@
 --
 -- Plugin source: github.com/yongjohnlee80/remote-sync.nvim. Local working
 -- copy lives at ~/Source/Projects/nvim-plugins/remote-sync.nvim for
--- development. To work against the local copy temporarily, add
+-- development. To work against the local copy temporarily, replace the
+-- `version` line below with
 -- `dir = vim.fn.expand("~/Source/Projects/nvim-plugins/remote-sync.nvim")`
--- next to the spec line below — lazy will use it instead of fetching.
+-- — lazy will use the local dir instead of fetching tagged releases.
+--
+-- Versioning: `version = "^0.1.0"` caret-pins to the v0.1.x line, so lazy
+-- auto-updates within the line and refuses to cross to v0.2+ unprompted.
+-- Bump the caret only when the upstream plugin tags a new minor.
 --
 -- The plugin auto-registers `:RemoteSync*` user commands; this spec only
 -- adds the keymaps. See the plugin README for the workflow and the
@@ -20,7 +25,7 @@ end
 return {
   {
     "yongjohnlee80/remote-sync.nvim",
-    tag = "v0.1.0",
+    version = "^0.1.0",
     lazy = true,
     keys = {
       -- Pull remote → local mirror, then auto-`git commit` the result as
@@ -72,9 +77,11 @@ return {
 
       -- Project navigation. Mirrors worktree.nvim's <leader>gw / <leader>gW
       -- pattern within our own keyspace (intentionally not reusing gW so
-      -- worktree's back-nav stays untouched). Discovery scans for
-      -- .autovim-remote.json under ~/Source/Remote (or fallbacks); the cwd
-      -- before each gq is pushed onto an in-memory stack so gQ pops back.
+      -- worktree's back-nav stays untouched). Discovery walks downward
+      -- from cwd at the first <leader>gq of a session for .autovim-remote.json
+      -- files; that cwd becomes the cached parent for subsequent gqs.
+      -- <leader>gQ pops back through the in-memory stack; once it drains,
+      -- the parent resets so the next gq re-captures from a fresh cwd.
       { "<leader>gq", call("navigate"),      desc = "Remote: pick & cd to project" },
       { "<leader>gQ", call("navigate_back"), desc = "Remote: cd back from remote project" },
     },
