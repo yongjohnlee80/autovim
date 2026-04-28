@@ -1,7 +1,22 @@
 return {
   {
     "nvim-neo-tree/neo-tree.nvim",
+    keys = {
+      {
+        "<leader>e",
+        "<cmd>Neotree source=workspace position=left toggle<cr>",
+        desc = "Explorer: registered repos / worktrees",
+      },
+      {
+        "<leader>E",
+        function()
+          require("neo-tree.command").execute({ toggle = true, dir = vim.uv.cwd() })
+        end,
+        desc = "Explorer NeoTree (cwd)",
+      },
+    },
     opts = {
+      sources = { "filesystem", "buffers", "git_status", "neo-tree-workspace" },
       filesystem = {
         filtered_items = {
           visible = true,
