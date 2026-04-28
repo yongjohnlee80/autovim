@@ -94,6 +94,37 @@ function M.add(path)
   return true
 end
 
+-- Flat list of every non-bare worktree path across all registered repos.
+-- Mirrors the roots shown under <leader>e (the neo-tree-workspace source).
+function M.worktree_paths()
+  local out = {}
+  for _, repo in ipairs(M.load()) do
+    local lines = vim.fn.systemlist({ "git", "-C", repo, "worktree", "list", "--porcelain" })
+    if vim.v.shell_error ~= 0 and vim.fn.isdirectory(repo .. "/.git") == 1 then
+      lines = vim.fn.systemlist({ "git", "--git-dir=" .. repo .. "/.git", "worktree", "list", "--porcelain" })
+    end
+    if vim.v.shell_error == 0 then
+      local current
+      local function flush()
+        if current and not current.bare then table.insert(out, current.path) end
+        current = nil
+      end
+      for _, line in ipairs(lines) do
+        if line:sub(1, 9) == "worktree " then
+          flush()
+          current = { path = line:sub(10) }
+        elseif line == "bare" and current then
+          current.bare = true
+        elseif line == "" then
+          flush()
+        end
+      end
+      flush()
+    end
+  end
+  return out
+end
+
 function M.remove(path)
   path = normalize(path)
   local repos = M.load()
