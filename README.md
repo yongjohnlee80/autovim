@@ -27,10 +27,60 @@ There's a certain poetry to it: Go for when you want the compiler to hold your h
 
 I've tried other setups. I've clicked through menus. I've dragged and dropped. I've used mice like some kind of animal. But nothing beats the flow of modal editing, instant AI assistance, and a config that loads faster than you can say "VS Code is updating." If the terminal is home, this config is the furniture.
 
+## Multi-agent panel
+
+[auto-agents.nvim](https://github.com/yongjohnlee80/auto-agents) replaces the single-agent claudecode panel with a **multi-slot orchestration window**. One right-side window hosts up to ten slots, plus four floating playground terminals. Every agent — Claude, Codex, Gemini, Copilot, or any shell — lives in its own slot with its own working directory, its own knowledge-base scope, and (optionally) its own diff-review behaviour.
+
+### The slot model
+
+```
+                    ┌─────────────────────┐
+       editor       │    auto-agents      │
+                    │  ┌──────────────┐   │
+                    │  │  winbar      │   │
+                    │  │  0 1 2 3 4 5 │   │   slots 0–5: main panel
+                    │  └──────────────┘   │   (one window, swapped buffers)
+                    │  ░░░░░░░░░░░░░░░░   │
+                    │  ░  agent term  ░   │
+                    │  ░░░░░░░░░░░░░░░░   │
+                    └─────────────────────┘
+
+                   slots 6–9: snacks floats
+                   T1..T4    : playground floats (F1..F4)
+```
+
+- **Slot 0 — admin REPL.** A prompt buffer with a tokenizing dispatcher, tab completion, and a help system. This is where wizards run (`agent add`, `kb init`, `project import`, …) and where you read `<verb> ?` docs in a scrollable popup.
+- **Slots 1–5 — main panel.** Configured agents (Claude / Codex / Gemini / Copilot / generic) sharing one window. Empty slots fall back to `$SHELL`.
+- **Slots 6–9 — sub-agent floats.** For ephemeral helpers, code-review passes, anything you want side-by-side rather than tabbed.
+- **T1..T4 — playground terminals.** Shared shells for you and the agents; `term send <N> <text>` is paste-safe so an agent can dispatch a build into T2 without leaving its panel.
+
+### Knowledge base (typed)
+
+Every project's KB sits at one of two paths depending on where the agent's config came from:
+
+- **Global agents** (defined in `<stdpath('config')>/.auto-agents-config/global.toml`) share **one** KB at `<stdpath('config')>/.auto-agents-config/kb`. Jarvis-everywhere reads the same conventions in every project.
+- **Project agents** (defined in a per-project TOML) get a project-local KB at `<project>/.auto-agents/kb`.
+
+Override either with `[kb].root = "/abs/path"` in the TOML. KBs are typed: pick **coding** (default for nvim users — codebase conventions, ADRs, review playbooks), **wiki** (Zettelkasten-flavored durable knowledge), **research** (papers / hypotheses / experiments), **ops** (alerts / runbooks / postmortems), **general** (minimal seed), or **custom** (you supply the seed `.md`). Each type ships an immutable `raw/` and a per-kind contract document (`AGENTS.md`, with `CLAUDE.md` and `GEMINI.md` pointers) that the agent auto-loads at spawn. `kb ingest` produces a deterministic worklist of new / edited / current / orphan raw files; `--attach <N>` pipes the worklist to slot N.
+
+### Navigation flow
+
+A typical session opens `:AutoAgents` (or `<F5>`) and lands on the admin slot. From there:
+
+- **Direct slot focus.** `<leader>a0`..`a9` jumps to that slot. Inside admin, the same digits work in normal mode (no leader needed).
+- **Navigation dock.** `<F6>` (or `<F12>`) opens a small right-edge float listing every slot plus the editor. Press a digit to jump, `e` to return to the editor, anything else to dismiss. Mode-safe — terminal mode doesn't leak into editor buffers.
+- **Help on demand.** `<verb> ?` (e.g. `agent add ?`, `kb init ?`) pops a scrollable floating help window. `help open <verb>` opens the underlying markdown if you want to edit it.
+- **Wizards.** `agent add`, `agent edit`, `kb init`, `project init` walk you through prompts inside the admin REPL. `<C-c>` aborts at any step. Default for `kind = "claude"`: `diff_review = true` so that agent's edits open as a diff split in your editor; sub-agents default to `false` so their edits stay in their own terminals.
+
+### Diff-review bridge
+
+`diff_review = true` per agent (set during the `agent add` wizard) makes that agent's proposed edits open as a diff split in your editor — left current, right proposed. **You can edit the proposed side manually** before accepting. `:w` accepts, closing the diff rejects. Implemented by injecting `CLAUDE_CODE_SSE_PORT` into the agent's spawn so Claude Code CLI's `openDiff` MCP tool routes through claudecode.nvim. Agents with `diff_review = false` use Claude Code's TUI confirm prompt in their own terminal — useful for sub-agents whose edits you don't want popping at you alongside your main coding agent's.
+
 ## What's Inside
 
 - **[LazyVim](https://www.lazyvim.org/)** -- because life's too short to configure everything from scratch, but too long to use someone else's config without tweaking it
-- **[claudecode.nvim](https://github.com/anthropics/claude-code/tree/main/packages/claudecode.nvim)** -- Claude Code integration, right in the editor. `<leader>ac` and you're pair programming with an AI that actually reads your code. Diff panels open with a 1×1 invisible keystroke-sink float for the first 500 ms, so the Enter you were typing into another panel doesn't accidentally accept/deny the diff before you've read it
+- **[auto-agents.nvim](https://github.com/yongjohnlee80/auto-agents)** -- another plugin I wrote: multi-agent orchestration panel. One right-side window holds up to ten slots — slot **0** is an admin REPL with a step-by-step wizard, slots **1–5** are main-window agent terminals, slots **6–9** open as floats. Plus four playground terminals **T1..T4** mapped to F1..F4. Specialized **knowledge-base** per project (typed: coding / wiki / research / ops / general / custom) with an immutable `raw/` and shared/private/isolated scopes. TOML-driven config under `<stdpath('config')>/.auto-agents-config/` survives `:cd`. `<F5>` toggles the panel; the admin's wizard creates agents, projects, and KBs by walking you through prompts. See [Multi-agent panel](#multi-agent-panel) below
+- **[claudecode.nvim](https://github.com/coder/claudecode.nvim)** -- soft dependency that auto-agents leans on for the **diff-review bridge**. Per-agent `diff_review = true` in the TOML routes that agent's proposed edits to a diff split in the editor (left current, right proposed; edit the right side, `:w` accepts, close rejects)
 - **LSP + Mason** -- language servers managed properly, so Go and TypeScript just work
 - **Treesitter** -- syntax highlighting that understands your code, not just your brackets
 - **[nvim-dap](https://github.com/mfussenegger/nvim-dap) + [nvim-dap-view](https://github.com/igorlfs/nvim-dap-view) + [nvim-dap-go](https://github.com/leoluz/nvim-dap-go)** -- delve-powered Go debugging with a minimalist inspection panel. Breakpoints, step controls, watches, attach-to-process, and debug-test-under-cursor
@@ -58,20 +108,33 @@ Connection setup for `lazysql` lives in [SQL Without Leaving Neovim](#sql-withou
 
 ## Key Bindings Worth Knowing
 
-### Editing & Claude
+### Editing & AI agents (auto-agents.nvim)
 
 | Binding | What It Does |
 |---|---|
 | `jk` | Escape insert mode (the only correct mapping) |
-| `<leader>ac` | Toggle Claude Code |
-| `<leader>as` | Send selection to Claude |
-| `<leader>ab` | Add current buffer to Claude |
-| `<leader>aa` | Accept Claude's diff |
-| `<leader>ad` | Deny Claude's diff |
-| `<leader>Ac` | Toggle Codex (resume last session) |
+| `<F5>` | Toggle the auto-agents panel (last-focused slot) |
+| `<F6>` / `<F12>` | Open the navigation dock (one-key slot dispatch) |
+| `<leader>ac` | Toggle the panel |
+| `<leader>ap` | `:AutoAgentsProject` — init/import/remove/list/show |
+| `<leader>a0` | Focus admin (slot 0) — the REPL where wizards live |
+| `<leader>a1`..`a9` | Focus slot N — 1..5 in the main panel, 6..9 as floats |
+
+Inside the panel:
+
+- The admin REPL has a step-by-step wizard for `agent add`, `agent edit`, `kb init`, `kb scope`, `project init`, `project import`. Every step shows `[current]`; press Enter to keep, type to change, **`<C-c>` to cancel**.
+- `<verb> ?` (or `<verb> <sub> ?`) opens a scrollable floating help window. `help open <verb>` opens the underlying markdown for hand-editing.
+
+### Codex (legacy, still available)
+
+| Binding | What It Does |
+|---|---|
+| `<leader>Ac` | Toggle Codex (snacks float, slot 5; resume last session) |
 | `<leader>AN` | Toggle Codex, forcing a fresh session |
 | `<leader>As` | Replace slot 5 with safe-mode Codex (default) |
 | `<leader>At` | Replace slot 5 with trusted-mode Codex |
+
+`F5` is now reserved for the auto-agents panel. The Codex slot-5 launchers above are still callable via `:Codex` / `:CodexSafe` / `:CodexTrusted`. To run Codex *inside* the auto-agents panel instead, add it as an agent kind via the wizard.
 
 ### Debugging (Go + delve)
 
@@ -115,15 +178,26 @@ Connection setup for `lazysql` lives in [SQL Without Leaving Neovim](#sql-withou
 |---|---|
 | `<C-q>` | Toggle the lazysql float (works in normal and terminal mode) |
 
-### Floating terminals
+### Playground terminals (T1..T4)
+
+Auto-agents brings four shared floating shells — separate from agent slots — keyed to F1..F4. Same key:
+
+| State                          | Effect            |
+|--------------------------------|-------------------|
+| Slot N has no terminal yet     | Create + focus    |
+| Slot N hidden                  | Show + focus      |
+| Slot N visible, unfocused      | Move focus to it  |
+| Slot N visible, focused        | Hide              |
+
+Moving focus into any non-float window auto-hides every T1..T4 float at once (scoped — won't fight lazygit / lazysql). The T-floats persist across `:cd` (marker-based lookup bypasses snacks's cwd hashing), so an interactive REPL stays alive when you hop worktrees.
+
+Plus `:AutoAgentsTermSend <slot> <text>` (paste-safe via a 60ms-deferred CR) lets agents drive the playground programmatically.
 
 | Binding | What It Does |
 |---|---|
-| `F1` | Toggle Terminal 1 (works in normal and terminal mode) |
-| `F2` | Toggle Terminal 2 |
-| `F3` | Toggle Terminal 3 |
-| `F4` | Toggle Terminal 4 |
-| `F5` | Toggle Codex |
+| `F1`..`F4` | Auto-agents playground terminal T1..T4 (focus / hide) |
+| `F5` | Toggle the auto-agents panel |
+| `F6` / `F12` | Open the auto-agents navigation dock |
 
 ### Markdown
 
