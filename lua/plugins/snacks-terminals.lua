@@ -1,13 +1,9 @@
--- F1..F5 dispatch through `utils.float_focus` so the same key that *opens*
--- an unfocused-but-visible terminal also *focuses* it (instead of hiding it
--- as the plain `term:toggle()` path used to). Only the focused-and-pressed
--- case still toggles off. See `utils/float_focus.lua` for the full spec.
-local function focus_or_hide(slot)
-  return function()
-    require("utils.float_focus").focus_or_hide_slot(slot)
-  end
-end
-
+-- F1..F4 are now owned by auto-agents.nvim (see lua/plugins/auto-agents.lua
+-- and the plugin's `lua/auto-agents/term/` modules). Same focus-or-hide
+-- behavior, marker-based lookup that survives `:cd`, scoped auto-hide on
+-- editor focus. This file just keeps the snacks terminal style override
+-- so any *other* snacks terminals (lazygit, lazysql, plugin/codex.lua) still
+-- pick up the rounded border.
 return {
   {
     "folke/snacks.nvim",
@@ -17,12 +13,5 @@ return {
         border = "rounded",
       })
     end,
-    keys = {
-      { "<F1>", focus_or_hide(1), mode = { "n", "t" }, desc = "Terminal 1 (focus/hide)" },
-      { "<F2>", focus_or_hide(2), mode = { "n", "t" }, desc = "Terminal 2 (focus/hide)" },
-      { "<F3>", focus_or_hide(3), mode = { "n", "t" }, desc = "Terminal 3 (focus/hide)" },
-      { "<F4>", focus_or_hide(4), mode = { "n", "t" }, desc = "Terminal 4 (focus/hide)" },
-      { "<F5>", focus_or_hide(5), mode = { "n", "t" }, desc = "Codex (focus/hide)" },
-    },
   },
 }

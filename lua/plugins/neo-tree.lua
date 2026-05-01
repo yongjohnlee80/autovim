@@ -2,6 +2,11 @@ return {
   {
     "nvim-neo-tree/neo-tree.nvim",
     opts = {
+      window = {
+        width = function()
+          return math.min(40, math.floor(vim.o.columns / 3))
+        end,
+      },
       filesystem = {
         filtered_items = {
           visible = true,

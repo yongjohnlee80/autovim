@@ -7,6 +7,14 @@ foo.*
 *.log
 .nvimlog
 .codex
+.auto-agents
+.auto-agents-config
+# auto-agents.nvim auto-injects a per-kind instruction file at the agent's
+# cwd on every spawn (CLAUDE.md / AGENTS.md / GEMINI.md). For *this* repo
+# (the autovim config dir), don't track them — they're per-machine state.
+CLAUDE.md
+AGENTS.md
+GEMINI.md
 data
 vendor/
 launch.json
