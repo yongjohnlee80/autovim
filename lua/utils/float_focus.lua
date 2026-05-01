@@ -97,18 +97,29 @@ end
 -- We scope on "is a Snacks terminal" rather than "is any float" to avoid
 -- clobbering transient plugin floats (telescope pickers, completion menus,
 -- signature help popups, etc.) that the user explicitly just opened.
+--
+-- Skips auto-agents.nvim sub-agent floats (slots 5..9, marked with
+-- `b:auto_agents_slot`) — they have their own auto-hide machinery that
+-- handles the same WinEnter race more carefully (re-checks current focus
+-- inside the deferred schedule). Without this skip, our hide_all would
+-- close auto-agents floats immediately after they're summoned via
+-- <leader>a5..9.
 function M.hide_all_tracked_floats()
   if not (Snacks and Snacks.terminal) then
     return
   end
   for _, term in ipairs(Snacks.terminal.list()) do
     if term.buf and vim.api.nvim_buf_is_valid(term.buf) then
-      local win = find_win_for_buf(term.buf)
-      if win and is_float(win) then
-        if type(term.hide) == "function" then
-          pcall(term.hide, term)
-        else
-          pcall(term.toggle, term)
+      if vim.b[term.buf].auto_agents_slot then
+        -- Owned by auto-agents.nvim — let it manage its own float lifecycle.
+      else
+        local win = find_win_for_buf(term.buf)
+        if win and is_float(win) then
+          if type(term.hide) == "function" then
+            pcall(term.hide, term)
+          else
+            pcall(term.toggle, term)
+          end
         end
       end
     end
