@@ -1,0 +1,21 @@
+@BASE_URL = https://api.example.test
+@API_KEY = replace-with-private-env
+
+### List releases
+GET {{BASE_URL}}/v1/releases?limit=10
+Authorization: Bearer {{API_KEY}}
+Accept: application/json
+
+### Create draft release
+POST {{BASE_URL}}/v1/releases
+Authorization: Bearer {{API_KEY}}
+Content-Type: application/json
+
+{
+  "title": "Nightly integration build",
+  "status": "draft",
+  "tracks": [
+    { "name": "Intro Sequence", "duration": 96 },
+    { "name": "Main Theme", "duration": 184 }
+  ]
+}
