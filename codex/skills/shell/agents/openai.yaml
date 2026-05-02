@@ -1,7 +1,0 @@
-interface:
-  display_name: "Shell"
-  short_description: "Send a shell line into a Neovim terminal"
-  default_prompt: "Use $shell to send a shell command into one of the Neovim terminal slots."
-
-policy:
-  allow_implicit_invocation: true

@@ -89,8 +89,7 @@ A typical session opens `:AutoAgents` (or `<F5>`) and lands on the admin slot. F
 - **[lazysql](https://github.com/jorgerojas26/lazysql)** -- a TUI SQL client hoisted into a floating window via `snacks.terminal`. Pre-configured connections, one keystroke to toggle, and the process stays alive between toggles so you don't pay the connection cost twice
 - **[kulala.nvim](https://github.com/mistweaverco/kulala.nvim)** -- HTTP client driven by `.http` files. Replaced `rest.nvim` (whose luarocks build chain was miserable on macOS). Per-project scaffold under `.rest/` via `<leader>Rs`, a single gitignored `http-client.private.env.json` with generic keys (`BASE_URL`, `USER_NAME`, `USER_PASS`, `API_KEY`), and `<leader>Rr` / `<leader>Rl` / `<leader>Ra` to run / replay / run-all
 - **[md-render.nvim](https://github.com/delphinus/md-render.nvim)** -- terminal-native Markdown previewer with rich layout: tables with box-drawing borders, callouts with icons + colored bars, fenced code blocks with treesitter syntax highlighting, OSC 8 hyperlinks, and inline images / video / Mermaid diagrams via the Kitty graphics protocol. The plugin's bundled preview is a single float; we layer [`yongjohnlee80/md-harpoon.nvim`](https://github.com/yongjohnlee80/md-harpoon.nvim) on top so `<leader>m{q,w,e,a,s,d}` host six coexisting floats arranged in a 2×3 grid — top row q/w/e, bottom row a/s/d — with per-slot cursor memory and a fuzzy file picker on `<leader>mf`. Replaces `glow.nvim`
-- **Floating terminals via `snacks.terminal`** -- four toggleable floating terminals on `F1`–`F4`, each with its own persistent shell. Works from normal mode *and* terminal mode, so you can bounce between them without juggling `<C-\\><C-n>` every time
-- **Codex Neovim bundle** -- a repo-local Codex wrapper plus bundled `shell` and `toggle-diff-editor` skills. `F5` toggles slot-5 Codex (safe by default), `<A-s>` / `<A-t>` swap slot 5 into safe / trusted mode, and the launcher prints a short welcome note with the diff-editor hint
+- **Floating playground terminals** — four toggleable floats on `F1`–`F4`, owned by [auto-agents.nvim](https://github.com/yongjohnlee80/auto-agents) (the `T1..T4` slots in the [Multi-agent panel](#multi-agent-panel) section). Each has its own persistent shell, marker-based lookup that survives `:cd`, and works from normal *and* terminal mode. `:AutoAgentsTermSend <slot> <text>` (paste-safe) lets agents drive them programmatically
 - **Remote sync** ([`yongjohnlee80/remote-sync.nvim`](https://github.com/yongjohnlee80/remote-sync.nvim)) -- a local-first / git-backed workflow for editing files on a shared remote without ever logging Claude or Codex into that remote. Drop a `.autovim-remote.json` at the root of a local mirror; `<leader>rp` / `<leader>rd` / `<leader>rs` / `<leader>rS` / `<leader>rc` / `<leader>rl` drive pull / drift-check / push / force-push / configured remote command / log float. Drift detection compares **remote vs git HEAD** (not working tree), so unpushed local edits don't trigger spurious drift. See [Remote Development](#remote-development) for the workflow
 - **11 colorschemes** -- because choosing a theme is a form of self-expression (currently rotating through them like outfits)
 
@@ -124,17 +123,6 @@ Inside the panel:
 
 - The admin REPL has a step-by-step wizard for `agent add`, `agent edit`, `kb init`, `kb scope`, `project init`, `project import`. Every step shows `[current]`; press Enter to keep, type to change, **`<C-c>` to cancel**.
 - `<verb> ?` (or `<verb> <sub> ?`) opens a scrollable floating help window. `help open <verb>` opens the underlying markdown for hand-editing.
-
-### Codex (legacy, still available)
-
-| Binding | What It Does |
-|---|---|
-| `<leader>Ac` | Toggle Codex (snacks float, slot 5; resume last session) |
-| `<leader>AN` | Toggle Codex, forcing a fresh session |
-| `<leader>As` | Replace slot 5 with safe-mode Codex (default) |
-| `<leader>At` | Replace slot 5 with trusted-mode Codex |
-
-`F5` is now reserved for the auto-agents panel. The Codex slot-5 launchers above are still callable via `:Codex` / `:CodexSafe` / `:CodexTrusted`. To run Codex *inside* the auto-agents panel instead, add it as an agent kind via the wizard.
 
 ### Debugging (Go + delve)
 
@@ -309,69 +297,27 @@ Set `ReadOnly = true` on anything you'd rather not fat-finger a `DELETE` into. S
 
 Hitting `q` exits lazysql and drops the connection. Use `<C-q>` instead to tuck the float away while leaving the session alive.
 
-## Codex in Neovim
-
-`F5` (and the `<leader>A...` chords below) launches Codex through `bin/codex-nvim`, not raw `codex`. That wrapper does three things before Codex starts:
-
-1. bootstraps the repo-local Codex bundle from `codex/` into `~/.codex`
-2. prints a short welcome note in the terminal, including the `toggle-diff-editor on|off` reminder
-3. starts Codex with a Neovim-specific startup prompt so the session already knows about the bundled `shell` and `toggle-diff-editor` skills
-
-The bundled assets live in:
-
-```text
-codex/
-  commands/
-  skills/
-  scripts/
-```
-
-This means someone cloning the public Neovim repo gets the Neovim-specific Codex skills from the repo itself instead of needing a second private skills repo.
-
-### Safe vs trusted mode
-
-Slot `5` is shared between the two modes, so only one can be running at a time:
-
-- `F5` just toggles whatever is currently in slot `5`. If nothing is there yet it boots **safe** mode — that's the default.
-- `<leader>As` / `:CodexSafe` force slot `5` into safe mode. Codex requires user approval for anything outside the sandbox.
-- `<leader>At` / `:CodexTrusted` force slot `5` into trusted mode. The launcher adds `-a never -s danger-full-access`, which is what lets Neovim-RPC flows (`/skills/shell`, the live diff-editor review) run without prompting.
-
-Switching between the two terminates the running terminal and opens a fresh one in the requested mode — you won't end up with two Codex terminals fighting over slot 5.
-
-Add `!` to either command (`:CodexSafe!`, `:CodexTrusted!`) to skip session resume and start a new Codex session instead of picking up the last one.
-
-### Bundled skills
-
-- `shell`: sends a command into Neovim terminal slots `1` through `4`
-- `toggle-diff-editor`: tells Codex to prefer or stop preferring the shared live patch-preview workflow
-
-The launcher welcome message reminds users that `toggle-diff-editor on|off` exists so the feature is discoverable in a fresh Codex session.
-
 ## Floating Terminals on F-Keys
 
-`F1` through `F4` each toggle their own floating shell, stacked with a slight cascade offset so you can eyeball which is which. Press the same key again from inside the terminal and it tucks away; press it again from anywhere and it's back, same shell, scrollback intact, any running process still going. That's `snacks.terminal.toggle` under the hood, keyed by slot number so each F-key gets its own persistent process.
+`F1` through `F4` toggle four playground terminals owned by [auto-agents.nvim](https://github.com/yongjohnlee80/auto-agents) (the `T1..T4` slots described in [Multi-agent panel](#multi-agent-panel)). Each is a persistent floating shell — same key from inside hides it, same key from outside brings it back, marker-based lookup that survives `:cd`. F5 is the panel toggle, not a fifth terminal — Codex / Claude / Gemini / etc. live as agent slots **inside** the panel now (configure via `agent add` in the admin REPL).
 
 ```
-F1 ──> Terminal 1 (78% of editor, top-left-ish)
-F2 ──> Terminal 2 (cascaded slightly right+down)
-F3 ──> Terminal 3 (cascaded more)
-F4 ──> Terminal 4 (cascaded most)
-F5 ──> Codex (toggle current slot-5 owner)
+F1 ──> Playground T1
+F2 ──> Playground T2
+F3 ──> Playground T3
+F4 ──> Playground T4
+F5 ──> Auto-agents panel toggle
 ```
 
-Keymaps work in both normal and terminal mode, so you can jump between the four without ever hitting `<C-\><C-n>`. Typical use: `F1` for `git`, `F2` for a running dev server, `F3` for ad-hoc `go test -run ...` loops, `F4` as a scratch REPL.
-
-**Why four and not on-demand unlimited?** Fixed slots mean predictable muscle memory. The cascade offset also makes it visually clear when you've peeked at two terminals one after the other — they stack slightly rather than perfectly overlap.
-
-**Scripting terminals from outside nvim.** The window layout and slot wiring now live in `lua/utils/term_send.lua` (a thin wrapper around `Snacks.terminal.toggle` / `.get`). It also exports `send(slot, cmd)`, which injects an arbitrary shell line into a slot's underlying job — useful when a sibling tool (a Claude skill, a shell script, a build wrapper) wants to kick off a long-running command in an already-visible terminal instead of backgrounding it or printing a copy-paste line.
+**Scripting terminals from outside nvim.** The plugin exposes `require("auto-agents.term").send(slot, cmd)` which injects an arbitrary shell line into a playground terminal's underlying job — useful when a sibling tool (a Claude skill, a shell script, a build wrapper) wants to kick off a long-running command in an already-visible terminal instead of backgrounding it or printing a copy-paste line. The `:TermSend <slot> <cmd>` and `:AutoAgentsTermSend <slot> <text>` user commands wrap the same call.
 
 Any subprocess of an nvim-managed terminal has `$NVIM` set to the parent's RPC socket, so the one-liner is:
 
 ```
-nvim --server "$NVIM" --remote-expr 'v:lua.require("utils.term_send").send(1, "make test")'
+nvim --server "$NVIM" --remote-expr 'v:lua.require("auto-agents.term").send(1, "make test")'
 ```
 
-`send` creates the slot if it doesn't exist, brings the window back if it was hidden, and appends a trailing newline so the command actually executes. The `/run` Claude skill uses this as a third "where to run it" option alongside background (nohup) and copy-paste — set the slot with `--term=<n>` or pick interactively.
+`send` creates the slot if it doesn't exist, brings the window back if it was hidden, and the paste-safe submit (deferred CR) means TUIs read the payload as a paste followed by a single Enter keystroke. The `/run` Claude skill uses this as a third "where to run it" option alongside background (nohup) and copy-paste — set the slot with `--term=<n>` or pick interactively.
 
 ## Markdown Preview
 

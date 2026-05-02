@@ -1,23 +1,15 @@
--- Floating-window focus/hide helper for the persistent Snacks-terminal floats
--- (T1..T5 + any user-invoked `Snacks.terminal.toggle` like lazysql / lazygit).
+-- WinEnter-driven auto-hide for the user-invoked `Snacks.terminal.toggle`
+-- floats (lazysql, lazygit, etc.). When the user leaves the float group
+-- entirely (moves into main buffer, neo-tree, the claudecode split, etc.),
+-- hide every Snacks-terminal float so the main splits aren't visually
+-- overlaid. Non-Snacks floats (telescope, blink.cmp completion, LSP hover,
+-- flash labels) are never touched; they're transient by design.
 --
--- Two distinct behaviors live here:
---
---   1. `focus_or_hide_slot(slot)` — the new F1..F5 dispatch. Replaces the
---      plain `term:toggle()` binding so that pressing Fn when the matching
---      terminal is *visible but not focused* moves focus to it instead of
---      closing it. Only the focused-and-pressed case still hides.
---
---   2. `hide_all_tracked_floats()` + a `WinEnter` autocmd — when the user
---      leaves the float group entirely (moves into main buffer, neo-tree,
---      the claudecode split, etc.), hide every Snacks-terminal float so the
---      main splits aren't visually overlaid. Non-Snacks floats (telescope,
---      blink.cmp completion, LSP hover, flash labels) are never touched;
---      they're transient by design.
+-- F1..F4 playground terminals and F5 panel are owned by auto-agents.nvim,
+-- which manages its own focus/hide lifecycle (the marker-skip below leaves
+-- those floats alone).
 
 local M = {}
-
-local TermSend = require("utils.term_send")
 
 local function is_float(win)
   if not win or not vim.api.nvim_win_is_valid(win) then
@@ -37,60 +29,6 @@ local function find_win_for_buf(buf)
     end
   end
   return nil
-end
-
--- Run the slot's first-launch path (create + show) using the existing
--- term_send entry points, which already encode the safe/trusted Codex
--- handling for slot 5.
-local function open_slot(slot)
-  if slot == TermSend.CODEX_SLOT then
-    return TermSend.toggle_codex()
-  end
-  return TermSend.toggle(slot)
-end
-
--- Hide a slot by round-tripping through term:toggle(). We avoid term:hide()
--- here to stay consistent with the path Snacks takes when the user presses
--- Fn on a focused terminal today — keeps the "toggle" bookkeeping happy.
-local function hide_slot_term(term)
-  if not term then
-    return
-  end
-  if type(term.toggle) == "function" then
-    pcall(term.toggle, term)
-  elseif type(term.hide) == "function" then
-    pcall(term.hide, term)
-  end
-end
-
--- Press-Fn dispatch:
---   - no terminal yet              → open it (create + focus)
---   - terminal hidden              → re-open it and force focus
---   - terminal visible, focused    → hide
---   - terminal visible, unfocused  → focus it (leave other floats alone)
-function M.focus_or_hide_slot(slot)
-  local term = TermSend.get(slot, { create = false })
-  if not term then
-    return open_slot(slot)
-  end
-
-  local win = find_win_for_buf(term.buf)
-  if not win then
-    open_slot(slot)
-    -- Some spawn paths (especially the Codex mode-switch branch) may leave
-    -- the new window without focus. Force it just in case.
-    local new_win = find_win_for_buf(term.buf)
-    if new_win and vim.api.nvim_win_is_valid(new_win) then
-      pcall(vim.api.nvim_set_current_win, new_win)
-    end
-    return
-  end
-
-  if vim.api.nvim_get_current_win() == win then
-    hide_slot_term(term)
-  else
-    pcall(vim.api.nvim_set_current_win, win)
-  end
 end
 
 -- Hide every Snacks-terminal float currently visible in this tab page.
