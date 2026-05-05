@@ -4,8 +4,8 @@
 vim.opt.relativenumber = true
 vim.opt.autoread = true
 
--- Use 4 spaces for indentation
+-- Indent with real tab characters, displayed 4 columns wide
 vim.opt.tabstop = 4
 vim.opt.shiftwidth = 4
 vim.opt.softtabstop = 4
-vim.opt.expandtab = true
+vim.opt.expandtab = false
