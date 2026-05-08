@@ -21,9 +21,6 @@ return {
               prefixes[key] = true
             end
           end
-          -- `system` is our pseudo-theme in `colors/system.lua` — transparent
-          -- revert-to-terminal look, also the fresh-install default.
-          prefixes["system"] = true
 
           Snacks.picker.pick("colorschemes", {
             transform = function(item)
