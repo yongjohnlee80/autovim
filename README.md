@@ -83,6 +83,25 @@ files only** (`git archive | tar -x`). It preserves:
 After overlay it runs `Lazy! sync` so the bumped `lazy-lock.json`
 pulls fresh plugin versions. Set `AUTOVIM_NO_LAZY_SYNC=1` to skip.
 
+## macOS Setup
+
+macOS users: check out the `mac-os` branch. It carries platform overrides (real `lua/plugins/theme.lua` instead of the Arch-managed symlink, a `theme-picker` plugin, etc.) and the setup flow below, which the `main` branch does not have since it's authored from the Arch daily driver.
+
+```bash
+# 1. Clone and switch to the macOS branch
+git clone git@github.com:yongjohnlee80/omarchy-nvim.git ~/.config/nvim
+cd ~/.config/nvim
+git checkout mac-os
+
+# 2. System binaries (everything else is managed by Lazy + Mason)
+go install github.com/jorgerojas26/lazysql@latest       # TUI SQL client (<C-q>)
+
+# 3. First Neovim launch — lazy.nvim installs plugins
+nvim +"Lazy sync" +qa
+```
+
+**Deprecated: `rest.nvim`.** Earlier versions of this config shipped `rest.nvim` for `.http` requests. Dropped in favor of [`kulala.nvim`](https://github.com/mistweaverco/kulala.nvim) because rest.nvim's luarocks build chain was a persistent pain on macOS: Homebrew no longer ships `lua@5.1`, `tree-sitter-http` had to be built through `hererocks`, and even then an out-of-band `luarocks install luarocks-build-treesitter-parser` step was required before `:Lazy build rest.nvim` would succeed. `kulala.nvim` needs only `curl` and Neovim 0.10+ — no luarocks, no Lua headers, no build step.
+
 ## Why This Exists
 
 Some people meditate. Some do yoga. I open Neovim, fire up Claude, and write Go and TypeScript until the world makes sense again. This is my happy place -- a terminal where keystrokes are cheap, feedback loops are tight, and the AI pair programmer never judges my variable names.
