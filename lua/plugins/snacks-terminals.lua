@@ -8,6 +8,17 @@ return {
   {
     "folke/snacks.nvim",
     opts = function(_, opts)
+      opts.picker = opts.picker or {}
+      opts.picker.sources = opts.picker.sources or {}
+      opts.picker.sources.files = vim.tbl_deep_extend("force", opts.picker.sources.files or {}, {
+        hidden = true,
+        ignored = true,
+      })
+      opts.picker.sources.grep = vim.tbl_deep_extend("force", opts.picker.sources.grep or {}, {
+        hidden = true,
+        ignored = true,
+      })
+
       opts.styles = opts.styles or {}
       opts.styles.terminal = vim.tbl_deep_extend("force", opts.styles.terminal or {}, {
         border = "rounded",

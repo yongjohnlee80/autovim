@@ -1,13 +1,14 @@
 -- md-harpoon.nvim — keymap spec.
 --
 -- Plugin source: github.com/yongjohnlee80/md-harpoon.nvim. Local working
--- copy lives at ~/Source/nvim-plugins/md-harpoon.nvim for development.
--- To work against the local copy temporarily, swap the spec line below
--- for `dir = vim.fn.expand("~/Source/nvim-plugins/md-harpoon.nvim")`
--- + `name = "md-harpoon.nvim"` — lazy will use it instead of fetching.
---
--- `version = "^0.1.0"` (caret) auto-tracks v0.1.x patch releases without
--- pulling a future v0.2.x. Bump deliberately when a major arrives.
+-- copy lives at ~/Source/Projects/nvim-plugins/md-harpoon.nvim. Currently
+-- loaded via `dir = ...` so edits in the local copy take effect on
+-- `:Lazy reload md-harpoon.nvim` (or restart). To switch back to the
+-- published release, swap the dir/name pair for:
+--     "yongjohnlee80/md-harpoon.nvim",
+--     version = "^0.1.0",
+-- The caret in `^0.1.0` auto-tracks v0.1.x patch releases without
+-- pulling a future v0.2.x — bump deliberately when a major arrives.
 --
 -- md-harpoon is a six-slot manager built on top of `delphinus/md-render.nvim`.
 -- md-render does the actual rendering (tables, callouts, fenced code,
@@ -30,15 +31,21 @@ end
 
 return {
   {
-    "yongjohnlee80/md-harpoon.nvim",
-    version = "^0.1.0",
+    dir = vim.fn.expand("~/Source/Projects/nvim-plugins/md-harpoon.nvim"),
+    name = "md-harpoon.nvim",
     dependencies = {
       { "delphinus/md-render.nvim", version = "*" },
+    },
+    opts = {
+      find = {
+        hidden = true,
+        ignored = true,
+      },
     },
     ft = { "markdown", "markdown.mdx" },
     cmd = {
       "MdHarpoonFocus", "MdHarpoonRender", "MdHarpoonRenderPath",
-      "MdHarpoonFind", "MdHarpoonCloseAll",
+      "MdHarpoonFind", "MdHarpoonCloseAll", "MdHarpoonBrowser",
       "MdRender", "MdRenderTab", "MdRenderPager",
     },
     keys = {
@@ -78,6 +85,13 @@ return {
       -- dep alongside md-harpoon, so the <Plug> map is live by the time
       -- this keymap fires.
       { "<leader>mt", "<Plug>(md-render-preview-tab)", desc = "Markdown: Preview (tab)" },
+      -- Render to standalone HTML and open in the default browser. Context-
+      -- sensitive: from inside a slot float → renders that slot's source;
+      -- from a plain markdown buffer → renders the current buffer. Pandoc
+      -- is required; wikilinks ([[page]] / ![[asset]]) are preprocessed by
+      -- default so Obsidian-flavored notes render correctly.
+      { "<leader>mb", function() require("md-harpoon").browser_open() end,
+        desc = "Markdown: render to HTML and open in browser" },
     },
   },
 }
