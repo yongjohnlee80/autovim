@@ -1,7 +1,13 @@
 -- Extend LazyVim's bufferline offsets so the auto-finder panel gets the
--- same "no tabs over me" treatment neo-tree already has. The config
--- section uses filetype `auto-finder-config`; neo-tree's filetype keeps
--- the LazyVim default and we just append our own entry next to it.
+-- same "no tabs over me" treatment.
+--
+-- After auto-finder.nvim's v0.1.3 fork-neotree severance, the panel's
+-- file/repo sections use filetype `auto-finder` (was `neo-tree`); the
+-- config (REPL) section keeps `auto-finder-config`. Both need offset
+-- entries so bufferline reserves the panel's column band on the left
+-- instead of painting tabs over our winbar. LazyVim's default offsets
+-- list (which only knows about `neo-tree`) doesn't cover us once the
+-- fork renamed the filetype.
 -- Click-into-buffer that survives `winfixbuf`. Without this, clicking a
 -- bufferline tab while focused on the auto-finder or auto-agents panel
 -- raises E1513 because vim refuses to swap the panel's buffer. We
@@ -56,6 +62,12 @@ return {
       opts.options.offsets = opts.options.offsets or {}
       table.insert(opts.options.offsets, {
         filetype = "auto-finder-config",
+        text = "auto-finder",
+        highlight = "Directory",
+        text_align = "left",
+      })
+      table.insert(opts.options.offsets, {
+        filetype = "auto-finder",
         text = "auto-finder",
         highlight = "Directory",
         text_align = "left",
