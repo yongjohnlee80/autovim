@@ -19,6 +19,25 @@ AUTOVIM_BRANCH=main AUTOVIM_SKIP_DEPS=1 \
 
 `AUTOVIM_BRANCH` forces a specific branch, `AUTOVIM_REPO` installs from a fork, `AUTOVIM_SKIP_DEPS=1` skips the system-package step if you've already installed neovim (≥0.10), ripgrep, fd, fzf, git, gcc, and curl yourself.
 
+### Upgrading to v0.3.0 — run `:Lazy update` first
+
+v0.3.0 is the AutoVim family migration to [auto-core.nvim](https://github.com/yongjohnlee80/auto-core.nvim) (`auto-agents` → `^0.2.0`, `auto-finder.nvim` → `^0.2.0`, `auto-core.nvim` newly pinned to `^0.1.0`). The plugins are tightly coupled across the version boundary — panel singleton markers, `winfixbuf` protection, the editor-window-floor invariant, and `b:auto_core_panel_owner` buffer-leak guard are all introduced together.
+
+**If your existing checkout has a stale `lazy-lock.json`, lazy.nvim will not roll forward on its own.** The symptom is a half-upgraded family: `auto-finder` lands on v0.2.0 (sets `winfixbuf=true` on its panel) while `auto-agents` is still on v0.1.x (no panel singleton, no editor-floor invariant). That mismatch produces, in order:
+
+- The auto-agents panel taking up the whole workarea on first `<F5>` (no editor window exists, `botright vsplit` fills available columns).
+- `E1513: Cannot switch buffer. 'winfixbuf' is enabled` at `auto-agents/init.lua:1260` on the next `<F5>` (panel inherited `winfixbuf` from the auto-finder vsplit).
+- `E444: Cannot close last window` at `auto-agents/init.lua:567` when toggling the panel closed (no editor-floor scratch keeping the layout from collapsing).
+- Files opened from auto-finder landing in the auto-finder panel itself (missing `w:auto_agents_panel` marker confuses neo-tree's `winfixbuf`-fallback rescan).
+
+**Fix:** run
+
+```vim
+:Lazy update
+```
+
+then quit and relaunch nvim. Confirm `lazy-lock.json` now pins `auto-agents`, `auto-core.nvim`, and `auto-finder.nvim` together; all three sit on their `^0.x.0` lines. Fresh installs via `install.sh` already pull the right pins; this note is only for users upgrading an existing checkout.
+
 ## Why This Exists
 
 Some people meditate. Some do yoga. I open Neovim, fire up Claude, and write Go and TypeScript until the world makes sense again. This is my happy place -- a terminal where keystrokes are cheap, feedback loops are tight, and the AI pair programmer never judges my variable names.
