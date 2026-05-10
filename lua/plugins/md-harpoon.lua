@@ -1,14 +1,20 @@
 -- md-harpoon.nvim — keymap spec.
 --
--- Plugin source: github.com/yongjohnlee80/md-harpoon.nvim. Local working
--- copy lives at ~/Source/Projects/nvim-plugins/md-harpoon.nvim. Currently
--- loaded via `dir = ...` so edits in the local copy take effect on
--- `:Lazy reload md-harpoon.nvim` (or restart). To switch back to the
--- published release, swap the dir/name pair for:
---     "yongjohnlee80/md-harpoon.nvim",
---     version = "^0.1.0",
--- The caret in `^0.1.0` auto-tracks v0.1.x patch releases without
--- pulling a future v0.2.x — bump deliberately when a major arrives.
+-- Plugin source: github.com/yongjohnlee80/md-harpoon.nvim. Pinned via
+-- `version = "^0.2.0"` (caret) — v0.2.0 is the auto-core consumer
+-- migration: per-project pin persistence keyed by
+-- sha256(workspace_root):sub(1,16), file-filter prefs read from
+-- auto-core.files, live-refresh subscribes to core.file:modified,
+-- worktree:switched re-hydrates the active pin map, and slots
+-- publish doc:pinned / doc:unpinned on auto-core.events. Future
+-- v0.2.x releases are additive-only per the auto-core-maintenance
+-- convention.
+--
+-- For local development against ~/Source/Projects/nvim-plugins/md-harpoon.nvim,
+-- swap the spec line for:
+--     dir = vim.fn.expand("~/Source/Projects/nvim-plugins/md-harpoon.nvim"),
+--     name = "md-harpoon.nvim",
+-- and lazy will use the working copy on `:Lazy reload md-harpoon.nvim`.
 --
 -- md-harpoon is a six-slot manager built on top of `delphinus/md-render.nvim`.
 -- md-render does the actual rendering (tables, callouts, fenced code,
@@ -31,17 +37,15 @@ end
 
 return {
   {
-    dir = vim.fn.expand("~/Source/Projects/nvim-plugins/md-harpoon.nvim"),
-    name = "md-harpoon.nvim",
+    "yongjohnlee80/md-harpoon.nvim",
+    version = "^0.2.0",
     dependencies = {
       { "delphinus/md-render.nvim", version = "*" },
+      -- auto-core foundation — referenced by name; spec lives in
+      -- lua/plugins/auto-core.lua. Hard dep as of v0.2.0.
+      "auto-core.nvim",
     },
-    opts = {
-      find = {
-        hidden = true,
-        ignored = true,
-      },
-    },
+    opts = {},
     ft = { "markdown", "markdown.mdx" },
     cmd = {
       "MdHarpoonFocus", "MdHarpoonRender", "MdHarpoonRenderPath",

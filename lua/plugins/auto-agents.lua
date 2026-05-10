@@ -14,13 +14,21 @@ local opts = {
 return {
   {
     "yongjohnlee80/auto-agents",
-    version = "^0.1.0",  -- caret pins to v0.1.x; auto-updates within the line
+    -- Caret-pinned to v0.2.x. v0.2.0 is the first release on top of
+    -- auto-core ^0.1.0 — the logger, state, panel, ghost-buffer +
+    -- canonical task-status mirror all delegate to auto-core. Future
+    -- v0.2.x releases are additive-only per the auto-core-maintenance
+    -- convention.
+    version = "^0.2.0",
     dependencies = {
       "folke/snacks.nvim",
       -- Soft dep: the diff-review bridge (per-agent `diff_review = true`).
       -- Without it, agents still run; opted-in agents fall back to the
       -- Claude Code TUI confirm prompt instead of the editor diff split.
       "coder/claudecode.nvim",
+      -- auto-core foundation — referenced by name; spec lives in
+      -- lua/plugins/auto-core.lua. Hard dep as of v0.2.0.
+      "auto-core.nvim",
     },
     lazy = false,
     opts = opts,

@@ -1,10 +1,12 @@
 -- auto-finder.nvim — multi-section file explorer with bundled neo-tree fork.
 --
 -- Plugin source: github.com/yongjohnlee80/auto-finder.nvim. Pinned via
--- `version = "^0.1.0"` (caret) so lazy.nvim auto-tracks v0.1.x patch
--- releases — currently v0.1.3 ships the bundled neo-tree fork and the
--- `cfg.neo_tree` wiring used below. Bump deliberately when a v0.2.x
--- arrives.
+-- `version = "^0.2.0"` (caret) — v0.2.0 is the auto-core consumer
+-- migration: panel singleton via auto-core.ui.panel, state via
+-- auto-core.state.namespace, file-filter prefs via auto-core.files,
+-- live-refresh via auto-core.fs.watch, sections via
+-- auto-core.ui.section + worktree:switched. Future v0.2.x releases
+-- are additive-only per the auto-core-maintenance convention.
 --
 -- For local development against ~/Source/Projects/nvim-plugins/auto-finder.nvim,
 -- swap the spec line for:
@@ -12,29 +14,30 @@
 --     name = "auto-finder.nvim",
 -- and lazy will use the working copy on `:Lazy reload auto-finder.nvim`.
 --
--- v0.1.3 ships its own forked neo-tree under
+-- v0.1.3+ ships its own forked neo-tree under
 -- `auto-finder.nvim/lua/auto-finder/neotree/`. The upstream
 -- `neo-tree.nvim` plugin is no longer required (and is hard-disabled
 -- via lua/plugins/disable-other-explorers.lua so LazyVim's auto-imports
 -- can't pull it back in transitively).
 --
--- Sections in v0.1: 0 = config (prompt REPL), 1 = files, 2 = repos
--- (registered repos × git worktrees, v0.1.2+). Numeric 0..9 in normal
--- mode inside the panel switches sections. Future: 3 = remote (SSH),
--- 4 = db. See the ADR in
--- ~/Source/Documents/knowledge-base/projects/auto-finder/design-decisions/.
+-- Sections in v0.2: 0 = config (prompt REPL), 1 = files, 2 = repos
+-- (registered repos × git worktrees). Numeric 0..9 in normal mode
+-- inside the panel switches sections. Future: 3 = remote (SSH),
+-- 4 = db.
 
 return {
   {
     "yongjohnlee80/auto-finder.nvim",
-    version = "^0.1.0",
-    -- Dependencies the bundled fork needs (these were neo-tree's
-    -- own deps — picking them up directly now that we don't go
-    -- through the upstream neo-tree.nvim plugin spec).
+    version = "^0.2.0",
+    -- Dependencies:
+    --   - nui / plenary / web-devicons: bundled neo-tree fork's deps
+    --   - auto-core.nvim: hard dep as of v0.2.0 (panel / state / log /
+    --     section / fs.watch / files surfaces)
     dependencies = {
       "MunifTanjim/nui.nvim",
       "nvim-lua/plenary.nvim",
       "nvim-tree/nvim-web-devicons",
+      "auto-core.nvim",
     },
     cmd = { "AutoFinder", "AutoFinderFocus", "AutoFinderResize", "AutoFinderReset" },
     keys = {
