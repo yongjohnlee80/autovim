@@ -143,6 +143,26 @@ clone_config() {
   git clone --branch "$branch" "$REPO" "$NVIM_CONFIG"
 }
 
+# Scaffold the user-owned custom layer from docs/custom-example/ on
+# fresh install. The layer is gitignored, so it never appears as
+# untracked changes against AutoVim's tree and never gets touched by
+# `update.sh`. Skipped if `lua/custom/` already exists — a re-run of
+# install.sh against an existing install must not clobber user edits.
+scaffold_custom() {
+  local target="$NVIM_CONFIG/lua/custom"
+  local source="$NVIM_CONFIG/docs/custom-example"
+  if [[ -d "$target" ]]; then
+    log "Custom layer already present: $target (leaving it as-is)"
+    return
+  fi
+  if [[ ! -d "$source" ]]; then
+    warn "docs/custom-example missing in this AutoVim checkout — skipping custom-layer scaffold"
+    return
+  fi
+  log "Scaffolding user custom layer: $target"
+  cp -r "$source" "$target"
+}
+
 bootstrap_plugins() {
   if ! command -v nvim >/dev/null; then
     warn "nvim not on PATH — skipping Lazy sync. Open nvim manually once your PATH is refreshed; plugins will install on first launch."
@@ -168,6 +188,7 @@ main() {
     log "AUTOVIM_SKIP_DEPS=1 — skipping system package install"
   fi
   clone_config "$branch"
+  scaffold_custom
   bootstrap_plugins
 
   cat >&2 <<EOF

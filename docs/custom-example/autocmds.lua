@@ -1,0 +1,23 @@
+-- AutoVim user autocmds.
+--
+-- Runs AFTER `lua/config/autocmds.lua`. Group your autocmds under a
+-- named augroup so you can clear them on `:source %` during iteration
+-- without nuking unrelated handlers.
+
+-- Example: highlight on yank (LazyVim already provides this; here as a
+-- pattern reference).
+--
+-- local group = vim.api.nvim_create_augroup("UserCustom", { clear = true })
+-- vim.api.nvim_create_autocmd("TextYankPost", {
+--   group = group,
+--   callback = function()
+--     vim.highlight.on_yank({ higroup = "Visual", timeout = 200 })
+--   end,
+-- })
+
+-- Example: open every Markdown file with conceallevel=2
+-- vim.api.nvim_create_autocmd("FileType", {
+--   group = vim.api.nvim_create_augroup("UserMarkdown", { clear = true }),
+--   pattern = "markdown",
+--   callback = function() vim.opt_local.conceallevel = 2 end,
+-- })

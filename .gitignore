@@ -41,3 +41,9 @@ sample.comi
 *.dylib
 *.dll
 .aider*
+
+# User-owned custom override layer (NvChad-style). The directory is
+# gitignored so `git pull` / `update.sh` never touches user files.
+# Starter templates live at docs/custom-example/ (tracked); the
+# installer copies them into lua/custom/ on fresh install.
+/lua/custom/

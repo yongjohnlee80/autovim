@@ -38,6 +38,51 @@ v0.3.0 is the AutoVim family migration to [auto-core.nvim](https://github.com/yo
 
 then quit and relaunch nvim. Confirm `lazy-lock.json` now pins `auto-agents`, `auto-core.nvim`, and `auto-finder.nvim` together; all three sit on their `^0.x.0` lines. Fresh installs via `install.sh` already pull the right pins; this note is only for users upgrading an existing checkout.
 
+## Customizing Without Losing It on Update
+
+AutoVim ships with a **user-owned override layer** at `lua/custom/`,
+modeled on NvChad's `custom/` pattern. The directory is gitignored, so
+`update.sh` and `git pull` never touch your files. `install.sh`
+scaffolds it from `docs/custom-example/` on a fresh install.
+
+Layout:
+
+```
+~/.config/nvim/lua/custom/
+├── init.lua          ← entrypoint; sourced after stock config
+├── options.lua       ← vim.opt.* overrides
+├── keymaps.lua       ← keymap overrides / additions
+├── autocmds.lua      ← user autocmds
+├── plugins/          ← extra / overriding lazy specs (merged by name)
+└── utils/            ← helpers; require("custom.utils.foo")
+```
+
+Load order — yours runs last for scalars (so `vim.opt.relativenumber = false`
+in `custom/options.lua` overrides the stock value); for plugin specs,
+lazy.nvim merges yours over the stock by repo name, so
+`{ "yongjohnlee80/auto-agents", opts = {...} }` re-uses the stock
+plugin entry and overrides only the fields you provide.
+
+See [`docs/custom-example/README.md`](docs/custom-example/README.md)
+for the full convention with examples (disabling stock plugins,
+overriding their `keys =`, registering new autocmds, etc.).
+
+### Updating
+
+```sh
+~/.config/nvim/update.sh
+```
+
+`update.sh` fetches the latest AutoVim and overlays the **tracked
+files only** (`git archive | tar -x`). It preserves:
+
+- `lua/custom/` — your customizations (gitignored upstream → not in the archive)
+- `.git/` — your fork's history, if you've forked AutoVim
+- Any other untracked file under `~/.config/nvim/`
+
+After overlay it runs `Lazy! sync` so the bumped `lazy-lock.json`
+pulls fresh plugin versions. Set `AUTOVIM_NO_LAZY_SYNC=1` to skip.
+
 ## Why This Exists
 
 Some people meditate. Some do yoga. I open Neovim, fire up Claude, and write Go and TypeScript until the world makes sense again. This is my happy place -- a terminal where keystrokes are cheap, feedback loops are tight, and the AI pair programmer never judges my variable names.
