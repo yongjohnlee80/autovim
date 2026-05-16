@@ -73,16 +73,16 @@ install_deps() {
   case "$os" in
     macos)
       command -v brew >/dev/null || die "Homebrew not found. Install it from https://brew.sh and re-run."
-      brew install neovim ripgrep fd fzf git
+      brew install neovim ripgrep fd fzf git tmux
       ;;
 
     arch)
-      sudo pacman -Syu --needed --noconfirm neovim ripgrep fd fzf git gcc curl
+      sudo pacman -Syu --needed --noconfirm neovim ripgrep fd fzf git gcc curl tmux
       ;;
 
     debian)
       sudo apt update
-      sudo apt install -y ripgrep fd-find fzf git build-essential curl
+      sudo apt install -y ripgrep fd-find fzf git build-essential curl tmux
 
       # apt's nvim is almost always too old for LazyVim (<0.10). Use snap.
       local need_nvim=1
@@ -113,7 +113,7 @@ install_deps() {
       ;;
 
     fedora)
-      sudo dnf install -y neovim ripgrep fd-find fzf git gcc curl
+      sudo dnf install -y neovim ripgrep fd-find fzf git gcc curl tmux
       ;;
 
     *)
@@ -163,6 +163,25 @@ scaffold_custom() {
   cp -r "$source" "$target"
 }
 
+install_autovim_cli() {
+  local src="$NVIM_CONFIG/autovim.sh"
+  local bindir="$HOME/.local/bin"
+  local link="$bindir/autovim"
+  if [[ ! -f "$src" ]]; then
+    warn "autovim.sh not present in $NVIM_CONFIG — skipping CLI install"
+    return
+  fi
+  mkdir -p "$bindir"
+  chmod +x "$src"
+  ln -sf "$src" "$link"
+  log "Installed autovim CLI: $link → $src"
+
+  case ":$PATH:" in
+    *":$bindir:"*) ;;
+    *) warn "$bindir is not on PATH — add this to your shell rc:  export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
+  esac
+}
+
 bootstrap_plugins() {
   if ! command -v nvim >/dev/null; then
     warn "nvim not on PATH — skipping Lazy sync. Open nvim manually once your PATH is refreshed; plugins will install on first launch."
@@ -189,6 +208,7 @@ main() {
   fi
   clone_config "$branch"
   scaffold_custom
+  install_autovim_cli
   bootstrap_plugins
 
   cat >&2 <<EOF

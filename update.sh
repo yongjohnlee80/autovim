@@ -104,6 +104,25 @@ overlay_tracked_tree() {
   git -C "$tmpdir/autovim" archive --format=tar HEAD | tar -x -C "$NVIM_CONFIG"
 }
 
+install_autovim_cli() {
+  local src="$NVIM_CONFIG/autovim.sh"
+  local bindir="$HOME/.local/bin"
+  local link="$bindir/autovim"
+  if [[ ! -f "$src" ]]; then
+    warn "autovim.sh not present in $NVIM_CONFIG — skipping CLI install"
+    return
+  fi
+  mkdir -p "$bindir"
+  chmod +x "$src"
+  ln -sf "$src" "$link"
+  log "Refreshed autovim CLI symlink: $link → $src"
+
+  case ":$PATH:" in
+    *":$bindir:"*) ;;
+    *) warn "$bindir is not on PATH — add this to your shell rc:  export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
+  esac
+}
+
 run_lazy_sync() {
   if [[ "${AUTOVIM_NO_LAZY_SYNC:-0}" == "1" ]]; then
     log "AUTOVIM_NO_LAZY_SYNC=1 — skipping plugin sync"
@@ -184,6 +203,7 @@ main() {
   fi
 
   overlay_tracked_tree "$branch"
+  install_autovim_cli
   run_lazy_sync
   run_lazy_update_family
   report_status
