@@ -2,6 +2,8 @@
 -- Slots 0-5 in the right window, slots 6-9 as snacks floats. Plus four
 -- playground terminals T1..T4 mapped to F1..F4.
 --
+-- Plugin source: remote release.
+--
 -- Agents/KB are not configured here — the TOML store at
 -- `<stdpath('config')>/.auto-agents-config/<project-key>.toml` (per-project)
 -- with fallback to `global.toml` is the source of truth. Open the panel
@@ -14,11 +16,6 @@ local opts = {
 return {
   {
     "yongjohnlee80/auto-agents",
-    -- Caret-pinned to v0.2.x. v0.2.0 is the first release on top of
-    -- auto-core ^0.1.0 — the logger, state, panel, ghost-buffer +
-    -- canonical task-status mirror all delegate to auto-core. Future
-    -- v0.2.x releases are additive-only per the auto-core-maintenance
-    -- convention.
     version = "^0.2.0",
     dependencies = {
       "folke/snacks.nvim",
@@ -36,12 +33,14 @@ return {
       require("auto-agents").setup(o)
     end,
     keys = {
-      { "<leader>a",  nil,                          desc = "AI / Auto Agents" },
-      { "<leader>ac", "<cmd>AutoAgents<cr>",        desc = "Toggle auto-agents (last-focused slot)" },
+      { "<leader>a", nil, desc = "AI / Auto Agents" },
+      { "<leader>ac", "<cmd>AutoAgents<cr>", desc = "Toggle auto-agents (last-focused slot)" },
+      { "<leader>ad", "<cmd>AutoAgentsDiffQueue<cr>", desc = "Toggle unified diff queue" },
+      { "<F11>", "<cmd>AutoAgentsDiffQueue<cr>", mode = { "n", "t" }, desc = "Toggle unified diff queue" },
       { "<leader>ap", "<cmd>AutoAgentsProject<cr>", desc = "Auto-agents project commands" },
-      { "<F5>",       "<cmd>AutoAgents<cr>",        mode = { "n", "t" }, desc = "Toggle auto-agents panel" },
-      { "<F6>",       "<cmd>AutoAgentsDock<cr>",    mode = { "n", "t" }, desc = "Auto-agents nav dock" },
-      { "<F12>",      "<cmd>AutoAgentsDock<cr>",    mode = { "n", "t" }, desc = "Auto-agents nav dock" },
+      { "<F5>", "<cmd>AutoAgents<cr>", mode = { "n", "t" }, desc = "Toggle auto-agents panel" },
+      { "<F6>", "<cmd>AutoAgentsDock<cr>", mode = { "n", "t" }, desc = "Auto-agents nav dock" },
+      { "<F12>", "<cmd>AutoAgentsDock<cr>", mode = { "n", "t" }, desc = "Auto-agents nav dock" },
       -- Slot focus 0..9. Descriptions are static here (TOML drives the
       -- live agent list); call `:lua require('auto-agents').refresh_keymaps()`
       -- after wizard mutations to refresh which-key labels.
