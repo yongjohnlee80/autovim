@@ -83,6 +83,14 @@ files only** (`git archive | tar -x`). It preserves:
 After overlay it runs `Lazy! sync` so the bumped `lazy-lock.json`
 pulls fresh plugin versions. Set `AUTOVIM_NO_LAZY_SYNC=1` to skip.
 
+> **You're on the `omarchy` branch.** This branch is tuned for Omarchy (Arch + Hyprland) and plugs into Omarchy's system theme so nvim auto-reloads its colorscheme whenever the OS theme changes. If you're not on Omarchy, pick the branch that matches your platform:
+>
+> | Branch | For | Theme handling |
+> |---|---|---|
+> | `omarchy` *(this one)* | Omarchy / Arch | `lua/plugins/theme.lua` is symlinked into `~/.config/omarchy/current/theme/neovim.lua`; `omarchy-theme-hotreload.lua` reloads the theme module on the `User LazyReload` autocmd Omarchy fires |
+> | `main` | Ubuntu, Windows, anything non-Omarchy | Static `theme.lua` + `<leader>ut` Snacks theme picker |
+> | `mac-os` | macOS | `main` plus macOS install notes |
+
 ## Why This Exists
 
 Some people meditate. Some do yoga. I open Neovim, fire up Claude, and write Go and TypeScript until the world makes sense again. This is my happy place -- a terminal where keystrokes are cheap, feedback loops are tight, and the AI pair programmer never judges my variable names.
@@ -155,6 +163,7 @@ A typical session opens `:AutoAgents` (or `<F5>`) and lands on the admin slot. F
 - **[md-render.nvim](https://github.com/delphinus/md-render.nvim)** -- terminal-native Markdown previewer with rich layout: tables with box-drawing borders, callouts with icons + colored bars, fenced code blocks with treesitter syntax highlighting, OSC 8 hyperlinks, and inline images / video / Mermaid diagrams via the Kitty graphics protocol. The plugin's bundled preview is a single float; we layer [`yongjohnlee80/md-harpoon.nvim`](https://github.com/yongjohnlee80/md-harpoon.nvim) on top so `<leader>m{q,w,e,a,s,d}` host six coexisting floats arranged in a 2×3 grid — top row q/w/e, bottom row a/s/d — with per-slot cursor memory and a fuzzy file picker on `<leader>mf`. Replaces `glow.nvim`
 - **Floating playground terminals** — four toggleable floats on `F1`–`F4`, owned by [auto-agents.nvim](https://github.com/yongjohnlee80/auto-agents) (the `T1..T4` slots in the [Multi-agent panel](#multi-agent-panel) section). Each has its own persistent shell, marker-based lookup that survives `:cd`, and works from normal *and* terminal mode. `:AutoAgentsTermSend <slot> <text>` (paste-safe) lets agents drive them programmatically
 - **Remote sync** ([`yongjohnlee80/remote-sync.nvim`](https://github.com/yongjohnlee80/remote-sync.nvim)) -- a local-first / git-backed workflow for editing files on a shared remote without ever logging Claude or Codex into that remote. Drop a `.autovim-remote.json` at the root of a local mirror; `<leader>rp` / `<leader>rd` / `<leader>rs` / `<leader>rS` / `<leader>rc` / `<leader>rl` drive pull / drift-check / push / force-push / configured remote command / log float. Drift detection compares **remote vs git HEAD** (not working tree), so unpushed local edits don't trigger spurious drift. See [Remote Development](#remote-development) for the workflow
+- **Omarchy theme hot-reload** *(omarchy-branch-only)* -- `lua/plugins/theme.lua` is symlinked to Omarchy's active theme file. When Omarchy switches themes (Hyprland shortcut / `omarchy-theme-set`), it rewrites that file and fires `User LazyReload`, which `omarchy-theme-hotreload.lua` listens for: unloads the theme module, clears highlights, reloads the colorscheme plugin, re-sources `plugin/after/transparency.lua`, and redraws. No nvim restart, no manual `:colorscheme` call
 - **11 colorschemes** -- because choosing a theme is a form of self-expression (currently rotating through them like outfits)
 
 ## Dependencies
