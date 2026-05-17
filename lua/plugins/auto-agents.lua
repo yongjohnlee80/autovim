@@ -38,6 +38,20 @@ return {
       { "<leader>ad", "<cmd>AutoAgentsDiffQueue<cr>", desc = "Toggle unified diff queue" },
       { "<F11>", "<cmd>AutoAgentsDiffQueue<cr>", mode = { "n", "t" }, desc = "Toggle unified diff queue" },
       { "<leader>ap", "<cmd>AutoAgentsProject<cr>", desc = "Auto-agents project commands" },
+      -- ADR 0024: operator-side bootstrap-refresh recovery keymaps.
+      -- Slot picker → deterministic prompt → paste-safe submit. Plugin
+      -- owns the prompt body so behaviour stays deterministic across
+      -- invocations.
+      {
+        "<leader>am",
+        function() require("auto-agents").reingest_bootstrap_picker() end,
+        desc = "Re-ingest bootstrap doc into a slot",
+      },
+      {
+        "<leader>ai",
+        function() require("auto-agents").reassert_identity_picker() end,
+        desc = "Re-assert runtime identity for a slot",
+      },
       { "<F5>", "<cmd>AutoAgents<cr>", mode = { "n", "t" }, desc = "Toggle auto-agents panel" },
       { "<F6>", "<cmd>AutoAgentsDock<cr>", mode = { "n", "t" }, desc = "Auto-agents nav dock" },
       { "<F12>", "<cmd>AutoAgentsDock<cr>", mode = { "n", "t" }, desc = "Auto-agents nav dock" },
