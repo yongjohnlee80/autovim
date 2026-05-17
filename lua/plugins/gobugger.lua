@@ -5,7 +5,10 @@
 return {
   {
     "yongjohnlee80/gobugger.nvim",
-    version = "^0.1.3",
+    -- Caret on the minor line so lazy auto-tracks every v0.1.x patch
+    -- release without requiring an autovim bump per release. Matches
+    -- the rest of the auto-family's `^0.X.0` convention.
+    version = "^0.1.0",
     dependencies = {
       "mfussenegger/nvim-dap",
       "leoluz/nvim-dap-go",
