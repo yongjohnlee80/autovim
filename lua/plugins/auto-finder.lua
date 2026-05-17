@@ -33,11 +33,25 @@ return {
     --   - nui / plenary / web-devicons: bundled neo-tree fork's deps
     --   - auto-core.nvim: hard dep as of v0.2.0 (panel / state / log /
     --     section / fs.watch / files surfaces)
+    --   - nvim-dbee: hard dep for the dbase section (auto-finder
+    --     v0.2.16+). Auto-finder treats dbee as a soft dep at the
+    --     plugin level (placeholder buffer if missing); autovim wires
+    --     it as a hard dep so `:Lazy sync` clones the repo AND runs
+    --     the `build` step that downloads the Go binary — no manual
+    --     `:Dbee install` needed. Setup is owned by
+    --     auto-finder.sections._dbase_setup; do NOT add a `config`
+    --     function on the dbee entry or the two setups will collide.
     dependencies = {
       "MunifTanjim/nui.nvim",
       "nvim-lua/plenary.nvim",
       "nvim-tree/nvim-web-devicons",
       "auto-core.nvim",
+      {
+        "kndndrj/nvim-dbee",
+        build = function()
+          require("dbee").install()
+        end,
+      },
     },
     cmd = { "AutoFinder", "AutoFinderFocus", "AutoFinderResize", "AutoFinderReset" },
     keys = {
