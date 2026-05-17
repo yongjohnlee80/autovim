@@ -46,6 +46,19 @@ return {
     version = "^0.1.0",
     -- plenary is auto-core's only hard dep per ADR §"Resolutions" #3.
     dependencies = { "nvim-lua/plenary.nvim" },
+    -- Consumer-owned keymap for the on-demand log viewer
+    -- (`:AutoCoreLog`, shipped in auto-core v0.1.17 — ADR 0021
+    -- Phase 4). The `keys` shim makes lazy.nvim register the binding
+    -- at startup and defer loading auto-core itself until the first
+    -- press, preserving the lazy-by-default posture documented below.
+    keys = {
+      {
+        "<leader>aL",
+        "<cmd>AutoCoreLog<cr>",
+        mode = "n",
+        desc = "auto-core: toggle :AutoCoreLog viewer",
+      },
+    },
     -- No `lazy = false` — auto-core loads on demand when a consumer
     -- requires it. Setup is consumer-driven; we don't call it here.
   },
