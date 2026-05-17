@@ -15,15 +15,25 @@
 # How it works:
 #   1. Clone the latest AutoVim into a temp dir.
 #   2. Overlay its tracked files into ~/.config/nvim using
-#      `git archive | tar -x`. This naturally:
+#      `rsync -a --exclude='.git/'` from the depth-1 clone's working
+#      tree. A fresh `git clone --depth=1` contains only tracked files
+#      plus `.git/`, so excluding `.git/` is equivalent to "tracked
+#      files only". This naturally:
 #        * skips `.git/` (so the user's own git config — including a
 #          fork remote, or no .git/ at all — survives the update),
-#        * skips `lua/custom/` (gitignored upstream → not in the
-#          archive → user customizations untouched),
+#        * skips `lua/custom/` (never created in the temp clone →
+#          rsync has nothing to copy → user customizations untouched),
 #        * skips every other gitignored path (lazy-lock backups,
-#          .auto-agents-config, design-decisions, etc.).
+#          .auto-agents-config, design-decisions, etc. — same reason).
 #   3. Run `nvim --headless +Lazy! sync` so the refreshed
 #      lazy-lock.json pulls the pinned plugin versions.
+#
+# rsync replaces an earlier `git archive HEAD | tar -x` pipeline. macOS
+# ships bsdtar (libarchive), which trips on `git archive`'s pax global
+# header and bails with "`.`: Can't replace existing directory with
+# non-directory". GNU tar (Linux) silently handles the same header, so
+# the bug only surfaced on macOS. rsync sidesteps the tar format
+# entirely and behaves identically across both platforms.
 #
 # This script is intentionally git-config-agnostic. If the user has
 # forked AutoVim and their `~/.config/nvim/.git` tracks the fork, the
@@ -97,11 +107,15 @@ overlay_tracked_tree() {
   git clone --quiet --depth=1 --branch "$branch" "$REPO" "$tmpdir/autovim"
 
   log "Overlaying tracked files onto $NVIM_CONFIG (preserving .git/, lua/custom/, every other gitignored path)"
-  # `git archive HEAD` emits a tar of the COMMITTED tree only — no
-  # .git/, no untracked files, no gitignored files. We pipe straight
-  # into tar so the user dir receives exactly the upstream snapshot
-  # of tracked files (and nothing else).
-  git -C "$tmpdir/autovim" archive --format=tar HEAD | tar -x -C "$NVIM_CONFIG"
+  # The depth-1 clone is itself a faithful snapshot of the tracked tree:
+  # no untracked, no gitignored files exist in a fresh clone. So rsync
+  # from "$tmpdir/autovim/" while excluding `.git/` delivers exactly the
+  # committed tree onto the user dir — same effect as a `git archive`
+  # extraction, but without the bsdtar-vs-GNU-tar incompatibility on
+  # `git archive`'s pax global header (which crashed macOS extracts).
+  command -v rsync >/dev/null \
+    || die "rsync not found on PATH — install it (apt/pacman/dnf/brew install rsync) and re-run."
+  rsync -a --exclude='.git/' "$tmpdir/autovim/" "$NVIM_CONFIG/"
 }
 
 install_autovim_cli() {

@@ -73,16 +73,23 @@ install_deps() {
   case "$os" in
     macos)
       command -v brew >/dev/null || die "Homebrew not found. Install it from https://brew.sh and re-run."
-      brew install neovim ripgrep fd fzf git tmux
+      # rsync: required by update.sh's overlay step (macOS ships an older
+      # bundled rsync, but brew's is preferred and matches Linux behavior).
+      # pandoc: required by md-harpoon's `<leader>mb` browser-render path.
+      brew install neovim ripgrep fd fzf git tmux rsync pandoc
       ;;
 
     arch)
-      sudo pacman -Syu --needed --noconfirm neovim ripgrep fd fzf git gcc curl tmux
+      # rsync + pandoc — see brew block above for rationale. WSL users hit
+      # this branch too if /etc/os-release reports `arch`-family.
+      sudo pacman -Syu --needed --noconfirm neovim ripgrep fd fzf git gcc curl tmux rsync pandoc
       ;;
 
     debian)
       sudo apt update
-      sudo apt install -y ripgrep fd-find fzf git build-essential curl tmux
+      # rsync + pandoc — see brew block above for rationale. WSL Ubuntu /
+      # Debian users hit this branch via uname -s == Linux.
+      sudo apt install -y ripgrep fd-find fzf git build-essential curl tmux rsync pandoc
 
       # apt's nvim is almost always too old for LazyVim (<0.10). Use snap.
       local need_nvim=1
@@ -113,11 +120,12 @@ install_deps() {
       ;;
 
     fedora)
-      sudo dnf install -y neovim ripgrep fd-find fzf git gcc curl tmux
+      # rsync + pandoc — see brew block above for rationale.
+      sudo dnf install -y neovim ripgrep fd-find fzf git gcc curl tmux rsync pandoc
       ;;
 
     *)
-      die "Automatic dep install isn't supported on this system. Install neovim (≥0.10), ripgrep, fd, fzf, git, gcc, curl manually, then re-run with AUTOVIM_SKIP_DEPS=1."
+      die "Automatic dep install isn't supported on this system. Install neovim (≥0.10), ripgrep, fd, fzf, git, gcc, curl, tmux, rsync, pandoc manually, then re-run with AUTOVIM_SKIP_DEPS=1."
       ;;
   esac
 

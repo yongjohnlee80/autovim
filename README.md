@@ -38,6 +38,24 @@ v0.3.0 is the AutoVim family migration to [auto-core.nvim](https://github.com/yo
 
 then quit and relaunch nvim. Confirm `lazy-lock.json` now pins `auto-agents`, `auto-core.nvim`, and `auto-finder.nvim` together; all three sit on their `^0.x.0` lines. Fresh installs via `install.sh` already pull the right pins; this note is only for users upgrading an existing checkout.
 
+## Running AutoVim (tmux-backed sessions)
+
+`install.sh` ships an `autovim` CLI (symlinked to `~/.local/bin/autovim` from `~/.config/nvim/autovim.sh`) that wraps `tmux` + `nvim` into named, persistent workspaces. **Prefer this over plain `nvim`** when starting a coding session — the tmux session survives terminal shutdowns, SSH drops, and accidental window closes, so you can resume exactly where you left off (buffers, marks, jumps, agent slots, undo history all intact).
+
+```bash
+autovim new                    # one-time: prompts for name + working dir
+autovim <name>                 # start or reattach a workspace (idempotent)
+autovim ls                     # list workspaces + which are alive
+autovim mem                    # RSS per live session (handy when nvim memory creeps)
+autovim edit <name>            # rename or repoint a workspace
+autovim kill <name>            # kill the live session (keeps the entry)
+autovim rm <name>              # remove the workspace + kill its session
+```
+
+A typical day: `autovim foo` in the morning attaches the long-lived tmux session for project `foo` with nvim already open. Close the terminal at end of day; tmux + nvim keep running in the background. Next morning, `autovim foo` again drops you straight back where you were.
+
+The workspace registry lives at `~/.config/autovim/workspaces.tsv` — one tab-separated `<name>\t<dir>` line per workspace. Edit by hand or via `autovim edit`. Requires `tmux` (installed by `install.sh`); if `~/.local/bin` isn't on your `$PATH`, `install.sh` prints the `export PATH=...` line to add to your shell rc.
+
 ## Customizing Without Losing It on Update
 
 AutoVim ships with a **user-owned override layer** at `lua/custom/`,
@@ -74,11 +92,13 @@ overriding their `keys =`, registering new autocmds, etc.).
 ```
 
 `update.sh` fetches the latest AutoVim and overlays the **tracked
-files only** (`git archive | tar -x`). It preserves:
+files only** (`rsync -a --exclude='.git/'` from a depth-1 clone — a fresh
+clone has no untracked or gitignored files, so the result is equivalent
+to "tracked files only"). It preserves:
 
-- `lua/custom/` — your customizations (gitignored upstream → not in the archive)
-- `.git/` — your fork's history, if you've forked AutoVim
-- Any other untracked file under `~/.config/nvim/`
+- `lua/custom/` — your customizations (gitignored upstream → never created in the temp clone → rsync skips it)
+- `.git/` — your fork's history, if you've forked AutoVim (explicit `--exclude='.git/'`)
+- Any other untracked file under `~/.config/nvim/` (same reason as `lua/custom/`)
 
 After overlay it runs `Lazy! sync` so the bumped `lazy-lock.json`
 pulls fresh plugin versions. Set `AUTOVIM_NO_LAZY_SYNC=1` to skip.
@@ -430,6 +450,7 @@ Text rendering needs nothing beyond Neovim. The rich-media features pull in a fe
 | `ffmpeg` | JPEG/WebP → PNG conversion, video frame extraction | `pacman -S ffmpeg` / `brew install ffmpeg` |
 | ImageMagick (`magick`) | Same conversions; ffmpeg fallback | `pacman -S imagemagick` / `brew install imagemagick` |
 | Mermaid CLI (`mmdc`) | Render Mermaid blocks (falls back to slow `npx -y` if absent) | `npm install -g @mermaid-js/mermaid-cli` |
+| `pandoc` | Required for md-harpoon's `<leader>mb` — renders the current markdown buffer (or active slot's source) to standalone HTML and opens it in the default browser. Wikilinks (`[[page]]` / `![[asset]]`) are preprocessed so Obsidian-flavored notes render correctly | Installed by `install.sh` on macOS / Arch / Debian / Fedora; manual otherwise (`pacman -S pandoc` / `brew install pandoc` / `apt install pandoc`) |
 
 ## Remote Development
 
