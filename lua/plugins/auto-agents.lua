@@ -1,6 +1,9 @@
 -- auto-agents.nvim — multi-agent orchestration panel.
--- Slots 0-5 in the right window, slots 6-9 as snacks floats. Plus four
--- playground terminals T1..T4 mapped to F1..F4.
+-- Slot 0 is the admin REPL; slots 1..N are flat right-panel agent
+-- workspaces (N = the live `panel.slot_count`, configurable via the
+-- admin verb `slot add` / `slot remove`). Unconfigured slots fall
+-- back to a shell — usable as a terminal workspace, not an empty
+-- placeholder. Plus four playground terminals T1..T4 mapped to F1..F4.
 --
 -- Plugin source: remote release.
 --
@@ -55,19 +58,15 @@ return {
       { "<F5>", "<cmd>AutoAgents<cr>", mode = { "n", "t" }, desc = "Toggle auto-agents panel" },
       { "<F6>", "<cmd>AutoAgentsDock<cr>", mode = { "n", "t" }, desc = "Auto-agents nav dock" },
       { "<F12>", "<cmd>AutoAgentsDock<cr>", mode = { "n", "t" }, desc = "Auto-agents nav dock" },
-      -- Slot focus 0..9. Descriptions are static here (TOML drives the
-      -- live agent list); call `:lua require('auto-agents').refresh_keymaps()`
-      -- after wizard mutations to refresh which-key labels.
-      { "<leader>a0", "<cmd>AutoAgentsFocus 0<cr>", desc = "Focus admin (slot 0)" },
-      { "<leader>a1", "<cmd>AutoAgentsFocus 1<cr>", desc = "Focus slot 1" },
-      { "<leader>a2", "<cmd>AutoAgentsFocus 2<cr>", desc = "Focus slot 2" },
-      { "<leader>a3", "<cmd>AutoAgentsFocus 3<cr>", desc = "Focus slot 3" },
-      { "<leader>a4", "<cmd>AutoAgentsFocus 4<cr>", desc = "Focus slot 4" },
-      { "<leader>a5", "<cmd>AutoAgentsFocus 5<cr>", desc = "Focus slot 5" },
-      { "<leader>a6", "<cmd>AutoAgentsFocus 6<cr>", desc = "Focus slot 6 (float)" },
-      { "<leader>a7", "<cmd>AutoAgentsFocus 7<cr>", desc = "Focus slot 7 (float)" },
-      { "<leader>a8", "<cmd>AutoAgentsFocus 8<cr>", desc = "Focus slot 8 (float)" },
-      { "<leader>a9", "<cmd>AutoAgentsFocus 9<cr>", desc = "Focus slot 9 (float)" },
+      -- Slot focus keymaps (`<leader>a0..aN`) are NOT registered here.
+      -- The plugin owns them: `auto-agents.setup()` calls
+      -- `refresh_keymaps()` which registers `<leader>a0..aMAX_SLOT`
+      -- with live `slot_desc(N)` descriptions (agent title for
+      -- configured slots, "shell" for the unconfigured trailing
+      -- slot). The same callback fires from `state.watch_slot_count`,
+      -- so growing/shrinking `slot_count` via `slot add N` /
+      -- `slot remove N` reflects in which-key immediately — no
+      -- restart, no consumer-config edit. Plugin v0.2.15+.
     },
   },
 }
