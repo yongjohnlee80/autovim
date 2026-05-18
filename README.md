@@ -38,6 +38,12 @@ v0.3.0 is the AutoVim family migration to [auto-core.nvim](https://github.com/yo
 
 then quit and relaunch nvim. Confirm `lazy-lock.json` now pins `auto-agents`, `auto-core.nvim`, and `auto-finder.nvim` together; all three sit on their `^0.x.0` lines. Fresh installs via `install.sh` already pull the right pins; this note is only for users upgrading an existing checkout.
 
+### Upgrading from v0.3.7 — `<C-q>` lazysql is now opt-in
+
+v0.3.10 retires the stock `<C-q>` lazysql float as AutoVim's default SQL surface. The new recommended workflow is [nvim-dbee](https://github.com/kndndrj/nvim-dbee), surfaced via `:Dbee` and the auto-finder panel's **dbase section** (mounts dbee's drawer in the panel, with schema-aware SQL completion in scratchpads via `cmp-dbee` bridged into blink.cmp). See [SQL Without Leaving Neovim](#sql-without-leaving-neovim).
+
+**Existing users keep `<C-q>` automatically.** Re-running `install.sh` (which invokes `update.sh` on an existing checkout) triggers a one-shot v0.3.10 migration that seeds `lua/custom/plugins/lazysql.lua` with the deprecated `<C-q>` binding when your pre-overlay tree had the stock lazysql spec. The migration is idempotent and respects manual edits under `lua/custom/`. Fresh installs from v0.3.10 onwards don't get lazysql at all — `install.sh` no longer `go install`s the binary, so `<C-q>` is opt-in (drop your own `lua/custom/plugins/lazysql.lua` if you want it back).
+
 ## Running AutoVim (tmux-backed sessions)
 
 `install.sh` ships an `autovim` CLI (symlinked to `~/.local/bin/autovim` from `~/.config/nvim/autovim.sh`) that wraps `tmux` + `nvim` into named, persistent workspaces. **Prefer this over plain `nvim`** when starting a coding session — the tmux session survives terminal shutdowns, SSH drops, and accidental window closes, so you can resume exactly where you left off (buffers, marks, jumps, agent slots, undo history all intact).
