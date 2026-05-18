@@ -129,15 +129,6 @@ install_deps() {
       ;;
   esac
 
-  # lazysql (TUI SQL client on <C-q>) — go install works on any host with Go.
-  if ! command -v lazysql >/dev/null; then
-    if command -v go >/dev/null; then
-      log "Installing lazysql via go install"
-      go install github.com/jorgerojas26/lazysql@latest || warn "lazysql install failed; <C-q> SQL float will no-op until fixed"
-    else
-      warn "lazysql not installed (needs Go). <C-q> SQL float will no-op until installed: https://github.com/jorgerojas26/lazysql"
-    fi
-  fi
 }
 
 clone_config() {

@@ -96,6 +96,97 @@ detect_branch() {
   esac
 }
 
+# Idempotent sanity-check that mirrors install.sh's `scaffold_custom`.
+# Older AutoVim installs (pre-`scaffold_custom`, before mid-2026) never
+# created `lua/custom/` and now have no place for user overrides. Re-runs
+# of this script copy `docs/custom-example/` over only if `lua/custom/`
+# is still missing — never clobbers an existing custom layer.
+scaffold_custom_if_missing() {
+  local target="$NVIM_CONFIG/lua/custom"
+  local source="$NVIM_CONFIG/docs/custom-example"
+  if [[ -d "$target" ]]; then
+    return
+  fi
+  if [[ ! -d "$source" ]]; then
+    warn "docs/custom-example missing — skipping custom-layer scaffold (older AutoVim checkout?)"
+    return
+  fi
+  log "Scaffolding user custom layer (first-time on this install): $target"
+  cp -r "$source" "$target"
+}
+
+# One-shot v0.3.10 migration: lazysql was retired as a stock plugin and
+# the snacks-terminal `<C-q>` binding moved with it. If the pre-overlay
+# install had the stock `lua/plugins/lazysql.lua` spec, seed an equivalent
+# spec into the user's custom layer so `<C-q>` keeps working until they
+# choose to drop it. The seeded file lives in `lua/custom/plugins/` —
+# user-owned territory; AutoVim will never overwrite it on future
+# updates. Skipped if the user already has a file at that path (manual
+# edits respected).
+#
+# Trigger condition is captured *before* `overlay_tracked_tree` runs:
+# the new overlay no longer ships `lua/plugins/lazysql.lua`, so checking
+# after-the-fact would never detect the upgrade.
+PRE_UPGRADE_HAD_LAZYSQL=0
+detect_pre_upgrade_lazysql() {
+  if [[ -f "$NVIM_CONFIG/lua/plugins/lazysql.lua" ]]; then
+    PRE_UPGRADE_HAD_LAZYSQL=1
+  fi
+}
+
+migrate_lazysql_to_custom() {
+  if [[ "$PRE_UPGRADE_HAD_LAZYSQL" != "1" ]]; then
+    return
+  fi
+  local target="$NVIM_CONFIG/lua/custom/plugins/lazysql.lua"
+  if [[ -f "$target" ]]; then
+    log "v0.3.10 migration: lua/custom/plugins/lazysql.lua already present — leaving it alone"
+    return
+  fi
+  if [[ ! -d "$NVIM_CONFIG/lua/custom/plugins" ]]; then
+    # scaffold_custom_if_missing should have created this; if it didn't
+    # (docs/custom-example missing), bail rather than `mkdir -p` an
+    # orphaned dir the user didn't sign up for.
+    warn "v0.3.10 migration: lua/custom/plugins/ missing — skipping lazysql seed. Re-run after manually creating lua/custom/."
+    return
+  fi
+  log "v0.3.10 migration: seeding $target so <C-q> keeps working until you migrate to nvim-dbee"
+  cat > "$target" <<'LAZYSQL_LUA'
+-- DEPRECATED — preserved by AutoVim's v0.3.10 update.sh migration.
+--
+-- AutoVim retired the stock lazysql float in v0.3.10 in favor of
+-- nvim-dbee (see `:Dbee`, the auto-finder dbase section, and SQL
+-- completion via cmp-dbee). This file keeps the old `<C-q>` lazysql
+-- float available for users who haven't migrated yet — but it lives in
+-- your user-owned `lua/custom/` layer now: AutoVim will never overwrite
+-- it on `update.sh`, and you own its lifecycle from here. Delete the
+-- file once you're comfortable with the nvim-dbee workflow.
+--
+-- Note: this spec assumes the `lazysql` binary is on PATH. AutoVim no
+-- longer `go install`s it for you in v0.3.10+; install manually with:
+--
+--   go install github.com/jorgerojas26/lazysql@latest
+
+return {
+  {
+    "folke/snacks.nvim",
+    keys = {
+      {
+        "<C-q>",
+        function()
+          Snacks.terminal.toggle("lazysql", {
+            win = { style = "lazygit" },
+          })
+        end,
+        mode = { "n", "t" },
+        desc = "LazySQL (deprecated; see :Dbee)",
+      },
+    },
+  },
+}
+LAZYSQL_LUA
+}
+
 overlay_tracked_tree() {
   local branch="$1"
   local tmpdir
@@ -216,7 +307,12 @@ main() {
     die "No AutoVim install found at $NVIM_CONFIG — run install.sh first."
   fi
 
+  # Capture pre-overlay markers BEFORE rsync replaces the tracked tree.
+  detect_pre_upgrade_lazysql
+
   overlay_tracked_tree "$branch"
+  scaffold_custom_if_missing
+  migrate_lazysql_to_custom
   install_autovim_cli
   run_lazy_sync
   run_lazy_update_family

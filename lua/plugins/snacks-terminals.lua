@@ -2,7 +2,7 @@
 -- and the plugin's `lua/auto-agents/term/` modules). Same focus-or-hide
 -- behavior, marker-based lookup that survives `:cd`, scoped auto-hide on
 -- editor focus. This file just keeps the snacks terminal style override
--- so any *other* snacks terminals (lazygit, lazysql, plugin/codex.lua) still
+-- so any *other* snacks terminals (lazygit, plugin/codex.lua, etc.) still
 -- pick up the rounded border.
 return {
   {

@@ -1,5 +1,5 @@
 -- WinEnter-driven auto-hide for the user-invoked `Snacks.terminal.toggle`
--- floats (lazysql, lazygit, etc.). When the user leaves the float group
+-- floats (lazygit and any plugin-spawned terminals). When the user leaves the float group
 -- entirely (moves into main buffer, neo-tree, the claudecode split, etc.),
 -- hide every Snacks-terminal float so the main splits aren't visually
 -- overlaid. Non-Snacks floats (telescope, blink.cmp completion, LSP hover,
@@ -73,7 +73,7 @@ function M.install_auto_hide()
     callback = function()
       -- Still inside any floating window → we're in the "float group",
       -- don't disturb the others. This covers jumping between T1..T5 /
-      -- lazysql / lazygit as well as transient plugin floats.
+      -- lazygit as well as transient plugin floats.
       if is_float(vim.api.nvim_get_current_win()) then
         return
       end
