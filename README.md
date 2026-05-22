@@ -125,6 +125,26 @@ the second run is the v0.3.14 script, which then hard-resets `.git/`
 to match origin. After that single bootstrap, future updates are
 single-shot.
 
+## macOS Setup
+
+macOS users: check out the `mac-os` branch. It carries platform overrides (real `lua/plugins/theme.lua` instead of the Arch-managed symlink, a `theme-picker` plugin, etc.) and the setup flow below, which the `main` branch does not have since it's authored from the Arch daily driver.
+
+```bash
+# 1. Clone and switch to the macOS branch
+git clone git@github.com:yongjohnlee80/omarchy-nvim.git ~/.config/nvim
+cd ~/.config/nvim
+git checkout mac-os
+
+# 2. System binaries
+go install golang.org/x/tools/gopls@latest              # Go LSP (AutoVim uses system gopls, not Mason)
+go install github.com/jorgerojas26/lazysql@latest       # TUI SQL client (<C-q>)
+
+# 3. First Neovim launch — lazy.nvim installs plugins
+nvim +"Lazy sync" +qa
+```
+
+**Deprecated: `rest.nvim`.** Earlier versions of this config shipped `rest.nvim` for `.http` requests. Dropped in favor of [`kulala.nvim`](https://github.com/mistweaverco/kulala.nvim) because rest.nvim's luarocks build chain was a persistent pain on macOS: Homebrew no longer ships `lua@5.1`, `tree-sitter-http` had to be built through `hererocks`, and even then an out-of-band `luarocks install luarocks-build-treesitter-parser` step was required before `:Lazy build rest.nvim` would succeed. `kulala.nvim` needs only `curl` and Neovim 0.10+ — no luarocks, no Lua headers, no build step.
+
 ## Why This Exists
 
 Some people meditate. Some do yoga. I open Neovim, fire up Claude, and write Go and TypeScript until the world makes sense again. This is my happy place -- a terminal where keystrokes are cheap, feedback loops are tight, and the AI pair programmer never judges my variable names.
@@ -187,7 +207,7 @@ A typical session opens `:AutoAgents` (or `<F5>`) and lands on the admin slot. F
 - **[LazyVim](https://www.lazyvim.org/)** -- because life's too short to configure everything from scratch, but too long to use someone else's config without tweaking it
 - **[auto-agents.nvim](https://github.com/yongjohnlee80/auto-agents)** -- another plugin I wrote: multi-agent orchestration panel. One right-side window holds up to ten slots — slot **0** is an admin REPL with a step-by-step wizard, slots **1–5** are main-window agent terminals, slots **6–9** open as floats. Plus four playground terminals **T1..T4** mapped to F1..F4. Specialized **knowledge-base** per project (typed: coding / wiki / research / ops / general / custom) with an immutable `raw/` and shared/private/isolated scopes. TOML-driven config under `<stdpath('config')>/.auto-agents-config/` survives `:cd`. `<F5>` toggles the panel; the admin's wizard creates agents, projects, and KBs by walking you through prompts. See [Multi-agent panel](#multi-agent-panel) below
 - **[claudecode.nvim](https://github.com/coder/claudecode.nvim)** -- soft dependency that auto-agents leans on for the **diff-review bridge**. Per-agent `diff_review = true` in the TOML routes that agent's proposed edits to a diff split in the editor (left current, right proposed; edit the right side, `:w` accepts, close rejects)
-- **LSP + Mason** -- language servers managed properly, so Go and TypeScript just work
+- **LSP + Mason** -- language servers managed properly, with `gopls` intentionally supplied by your Go toolchain and other Go helpers still managed by Mason
 - **Treesitter** -- syntax highlighting that understands your code, not just your brackets
 - **[nvim-dap](https://github.com/mfussenegger/nvim-dap) + [nvim-dap-view](https://github.com/igorlfs/nvim-dap-view) + [nvim-dap-go](https://github.com/leoluz/nvim-dap-go)** -- delve-powered Go debugging with a minimalist inspection panel. Breakpoints, step controls, watches, attach-to-process, and debug-test-under-cursor
 - **[worktree.nvim](https://github.com/yongjohnlee80/worktree.nvim)** -- in-editor worktree switcher I wrote. Hops between repos/worktrees under the directory you opened nvim in, with safety rails on add/remove and ghost-buffer cleanup. Comes with a lualine component and optional LSP re-anchor on switch
@@ -201,12 +221,14 @@ A typical session opens `:AutoAgents` (or `<F5>`) and lands on the admin slot. F
 
 ## Dependencies
 
-One external binary this config relies on that doesn't install itself through Lazy or Mason:
+External binaries this config relies on that don't install themselves through Lazy or Mason:
 
+- **`gopls`** — the Go language server. AutoVim deliberately keeps this outside Mason because new `gopls` releases can briefly outrun Mason's registry / Go proxy cache. If Go is installed but `gopls` is missing, AutoVim shows a startup warning with the install command.
 - **`lazysql`** — the TUI SQL client wired to `<C-q>`. The Neovim side is just a `snacks.terminal` toggle; the binary has to be on your `$PATH`.
 
 | Tool | Arch | macOS |
 |---|---|---|
+| `gopls` | `go install golang.org/x/tools/gopls@latest` | `go install golang.org/x/tools/gopls@latest` |
 | `lazysql` | `yay -S lazysql-bin` (AUR) | `go install github.com/jorgerojas26/lazysql@latest` |
 
 Connection setup for `lazysql` lives in [SQL Without Leaving Neovim](#sql-without-leaving-neovim).
