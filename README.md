@@ -93,21 +93,37 @@ overriding their `keys =`, registering new autocmds, etc.).
 
 ### Updating
 
-```sh
-~/.config/nvim/update.sh
-```
+Two paths, same `update.sh` under the hood:
 
-`update.sh` fetches the latest AutoVim and overlays the **tracked
-files only** (`rsync -a --exclude='.git/'` from a depth-1 clone — a fresh
-clone has no untracked or gitignored files, so the result is equivalent
-to "tracked files only"). It preserves:
+1. **Shell:** `~/.config/nvim/update.sh` directly.
+2. **In-editor:** `<leader>aU` (or `:AutoVimUpdate [1-4]`) prompts for
+   a playground terminal slot (T1..T4) and runs the script inside
+   that floating terminal. You watch the output live; the main nvim
+   stays running with its currently-loaded modules. Restart nvim or
+   `:Lazy reload` afterwards to pick up new code.
 
-- `lua/custom/` — your customizations (gitignored upstream → never created in the temp clone → rsync skips it)
-- `.git/` — your fork's history, if you've forked AutoVim (explicit `--exclude='.git/'`)
-- Any other untracked file under `~/.config/nvim/` (same reason as `lua/custom/`)
+`update.sh` does two things in order against `~/.config/nvim`:
+
+1. **Hard-resets `.git/` to `origin/<branch>`.** `git fetch origin <branch> && git reset --hard origin/<branch>` brings the local branch ref AND the working tree's tracked files to origin's tip in one step — no more silently-lagging `.git/` after upstream rebases. Skipped when `.git/` is absent. **This is destructive against uncommitted edits to tracked files and against any local commits.** Customizations live in `lua/custom/` (gitignored, never touched); commits live in your fork's remote.
+2. **Rsyncs the temp clone** onto `~/.config/nvim`. For installs with `.git/` this is a no-op for tracked files (hard reset already produced the same bytes); for raw-tarball / `.git/`-less installs it's the sole update mechanism. `lua/custom/` and every other gitignored path are preserved either way — they're never in the temp clone.
 
 After overlay it runs `Lazy! sync` so the bumped `lazy-lock.json`
-pulls fresh plugin versions. Set `AUTOVIM_NO_LAZY_SYNC=1` to skip.
+pulls fresh plugin versions, then `Lazy! update <family>` so caret
+pins advance. Set `AUTOVIM_NO_LAZY_SYNC=1` / `AUTOVIM_NO_FAMILY_UPDATE=1` to skip either.
+
+**Fork users:** the hard reset uses the LOCAL `.git/`'s `origin`
+remote (whatever URL it points at), not `$AUTOVIM_REPO`. Point your
+`.git/`'s origin at your fork (`git remote set-url origin <fork>`)
+so the reset tracks your fork's branch instead of upstream. Any
+work you want to keep must already be committed and pushed to that
+fork's remote before invoking `update.sh`.
+
+**Upgrade note (one-time, from v0.3.13):** the hard-reset logic
+landed in v0.3.14, so the v0.3.13 `update.sh` on disk doesn't have
+it. The first `update.sh` run lays the new script down via rsync;
+the second run is the v0.3.14 script, which then hard-resets `.git/`
+to match origin. After that single bootstrap, future updates are
+single-shot.
 
 ## Why This Exists
 
@@ -208,6 +224,7 @@ Connection setup for `lazysql` lives in [SQL Without Leaving Neovim](#sql-withou
 | `<leader>ap` | `:AutoAgentsProject` — init/import/remove/list/show |
 | `<leader>a0` | Focus admin (slot 0) — the REPL where wizards live |
 | `<leader>a1`..`a9` | Focus slot N — 1..5 in the main panel, 6..9 as floats |
+| `<leader>aU` | `:AutoVimUpdate` — pick T1..T4 and run `update.sh` inside that playground terminal |
 
 Inside the panel:
 

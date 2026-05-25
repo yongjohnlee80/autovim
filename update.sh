@@ -13,20 +13,28 @@
 #   AUTOVIM_FAMILY_PLUGINS="a b"    space-separated override of the family list
 #
 # How it works:
-#   1. Clone the latest AutoVim into a temp dir.
-#   2. Overlay its tracked files into ~/.config/nvim using
-#      `rsync -a --exclude='.git/'` from the depth-1 clone's working
-#      tree. A fresh `git clone --depth=1` contains only tracked files
-#      plus `.git/`, so excluding `.git/` is equivalent to "tracked
-#      files only". This naturally:
-#        * skips `.git/` (so the user's own git config — including a
-#          fork remote, or no .git/ at all — survives the update),
-#        * skips `lua/custom/` (never created in the temp clone →
-#          rsync has nothing to copy → user customizations untouched),
-#        * skips every other gitignored path (lazy-lock backups,
-#          .auto-agents-config, design-decisions, etc. — same reason).
+#   1. Hard-reset $NVIM_CONFIG/.git to origin/<branch>. This advances
+#      the local branch ref AND replaces every tracked file in the
+#      working tree with origin's version. Skipped when `.git/` is
+#      missing. Gitignored paths (lua/custom/, lazy-lock backups,
+#      .auto-agents-config, …) are NOT touched — that's the user's
+#      customization surface and stays intact across updates.
+#   2. Clone origin/<branch> at depth 1 into a temp dir and `rsync -a
+#      --exclude='.git/'` it onto $NVIM_CONFIG. For installs WITH .git/
+#      this overlays the same bytes the hard reset already produced
+#      (no-op for tracked files). For installs WITHOUT .git/ — raw
+#      tarball drops, edge cases — the rsync IS the update mechanism.
 #   3. Run `nvim --headless +Lazy! sync` so the refreshed
-#      lazy-lock.json pulls the pinned plugin versions.
+#      lazy-lock.json pulls the pinned plugin versions; then
+#      `Lazy! update <family>` so caret pins advance.
+#
+# **Fork users:** the hard reset uses the LOCAL `.git/`'s `origin`
+# remote (whatever URL it points at), not $AUTOVIM_REPO. Point your
+# `.git/`'s origin at your fork (`git remote set-url origin <fork>`)
+# and update.sh will track your fork's branch. If your fork carries
+# committed-on-top changes against upstream, the hard reset will move
+# them to your fork's origin/<branch> tip — commit your work through
+# the fork's remote before invoking update.sh.
 #
 # rsync replaces an earlier `git archive HEAD | tar -x` pipeline. macOS
 # ships bsdtar (libarchive), which trips on `git archive`'s pax global
@@ -34,12 +42,6 @@
 # non-directory". GNU tar (Linux) silently handles the same header, so
 # the bug only surfaced on macOS. rsync sidesteps the tar format
 # entirely and behaves identically across both platforms.
-#
-# This script is intentionally git-config-agnostic. If the user has
-# forked AutoVim and their `~/.config/nvim/.git` tracks the fork, the
-# update simply lays new tracked files on top — the fork's history is
-# untouched, and `git status` will show the new versions as pending
-# changes against the fork (commit / reset / stash as preferred).
 
 set -euo pipefail
 
@@ -187,6 +189,30 @@ return {
 LAZYSQL_LUA
 }
 
+# Bring the local checkout's branch ref in line with origin so the
+# rsync below isn't laying new files on top of a stale `.git/` HEAD.
+# This step is deliberately destructive against uncommitted edits to
+# tracked files and against local commits: AutoVim's customization
+# contract puts user-owned changes in `lua/custom/` (gitignored), so a
+# hard reset of tracked content is the simplest "make it match origin"
+# operation. Forks that want different semantics should set
+# AUTOVIM_REPO=<fork-url> and commit through that fork's origin.
+#
+# Skipped silently when `.git/` is missing — the rsync overlay below
+# handles that case as the sole update mechanism.
+hard_reset_to_origin() {
+  local target_branch="$1"
+  if [[ ! -d "$NVIM_CONFIG/.git" ]]; then
+    log "No .git/ in $NVIM_CONFIG — skipping hard reset; rsync will handle the overlay"
+    return
+  fi
+  log "Hard-resetting $NVIM_CONFIG/.git to origin/$target_branch"
+  git -C "$NVIM_CONFIG" fetch --quiet origin "$target_branch" \
+    || die "git fetch origin $target_branch failed in $NVIM_CONFIG"
+  git -C "$NVIM_CONFIG" reset --hard --quiet "origin/$target_branch" \
+    || die "git reset --hard origin/$target_branch failed in $NVIM_CONFIG"
+}
+
 overlay_tracked_tree() {
   local branch="$1"
   local tmpdir
@@ -197,7 +223,7 @@ overlay_tracked_tree() {
   log "Fetching AutoVim ($branch branch) into a temp dir"
   git clone --quiet --depth=1 --branch "$branch" "$REPO" "$tmpdir/autovim"
 
-  log "Overlaying tracked files onto $NVIM_CONFIG (preserving .git/, lua/custom/, every other gitignored path)"
+  log "Overlaying tracked files onto $NVIM_CONFIG (preserving lua/custom/ and every other gitignored path)"
   # The depth-1 clone is itself a faithful snapshot of the tracked tree:
   # no untracked, no gitignored files exist in a fresh clone. So rsync
   # from "$tmpdir/autovim/" while excluding `.git/` delivers exactly the
@@ -278,17 +304,12 @@ report_status() {
     cat >&2 <<EOF
 
 Your ~/.config/nvim/.git tree has pending changes after the overlay.
-This is expected — the AutoVim updater laid new tracked files on top
-of whatever your fork's HEAD pointed at. Resolve as you prefer:
+This is unexpected after the hard-reset step ran — most likely an
+untracked file appeared during the run (e.g. a freshly-generated
+lazy-lock backup). Inspect with:
 
   cd "$NVIM_CONFIG"
   git status
-  # commit the update into your fork:
-  git add -A && git commit -m "AutoVim update"
-  # or reset to your fork's upstream:
-  git reset --hard origin/<your-branch>
-  # or stash to inspect later:
-  git stash -u
 
 EOF
   fi
@@ -310,6 +331,7 @@ main() {
   # Capture pre-overlay markers BEFORE rsync replaces the tracked tree.
   detect_pre_upgrade_lazysql
 
+  hard_reset_to_origin "$branch"
   overlay_tracked_tree "$branch"
   scaffold_custom_if_missing
   migrate_lazysql_to_custom
@@ -322,14 +344,13 @@ main() {
 
 AutoVim updated.
 
-Your customizations are intact:
-  * lua/custom/             — never touched (gitignored upstream)
-  * .git/ (if any)          — your fork's history is unchanged
-  * any other untracked     — left alone
+Tracked files were hard-reset to origin/<branch>. Gitignored paths
+(lua/custom/, lazy-lock backups, .auto-agents-config, etc.) are
+untouched. Restart nvim or run :Lazy reload to pick up new code.
 
 Re-run with different options:
   AUTOVIM_BRANCH=<name>             Force a branch (main | mac-os | omarchy)
-  AUTOVIM_REPO=<url>                Pull from a fork
+  AUTOVIM_REPO=<url>                Pull from a fork (also point your local origin at it)
   AUTOVIM_NO_LAZY_SYNC=1            Skip Lazy! sync
   AUTOVIM_NO_FAMILY_UPDATE=1        Skip Lazy update of AutoVim-authored plugins
   AUTOVIM_FAMILY_PLUGINS="a b c"    Override which plugins get the Lazy update
