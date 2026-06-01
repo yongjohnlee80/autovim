@@ -221,7 +221,7 @@ Connection setup for `lazysql` lives in [SQL Without Leaving Neovim](#sql-withou
 | `<F5>` | Toggle the auto-agents panel (last-focused slot) |
 | `<F6>` / `<F12>` | Open the navigation dock (one-key slot dispatch) |
 | `<leader>ac` | Toggle the panel |
-| `<leader>ap` | `:AutoAgentsProject` — init/import/remove/list/show |
+| `<leader>am` / `<leader>ai` / `<leader>ap` | Bootstrap-refresh a slot: re-ingest doc / re-assert identity / bootstrap mailbox permissions (PERMISSION.md, ADR-0036). Project commands: `:AutoAgentsProject`. |
 | `<leader>a0` | Focus admin (slot 0) — the REPL where wizards live |
 | `<leader>a1`..`a9` | Focus slot N — 1..5 in the main panel, 6..9 as floats |
 | `<leader>aU` | `:AutoVimUpdate` — pick T1..T4 and run `update.sh` inside that playground terminal |

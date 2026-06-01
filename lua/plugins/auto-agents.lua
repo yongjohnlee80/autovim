@@ -40,11 +40,12 @@ return {
       { "<leader>ac", "<cmd>AutoAgents<cr>", desc = "Toggle auto-agents (last-focused slot)" },
       { "<leader>ad", "<cmd>AutoAgentsDiffQueue<cr>", desc = "Toggle unified diff queue" },
       { "<F11>", "<cmd>AutoAgentsDiffQueue<cr>", mode = { "n", "t" }, desc = "Toggle unified diff queue" },
-      { "<leader>ap", "<cmd>AutoAgentsProject<cr>", desc = "Auto-agents project commands" },
-      -- ADR 0024: operator-side bootstrap-refresh recovery keymaps.
-      -- Slot picker → deterministic prompt → paste-safe submit. Plugin
-      -- owns the prompt body so behaviour stays deterministic across
-      -- invocations.
+      -- ADR 0024 / ADR-0036: operator-side bootstrap-refresh recovery
+      -- keymaps. Slot picker → deterministic prompt → paste-safe submit.
+      -- Plugin owns the prompt body so behaviour stays deterministic
+      -- across invocations. (`<leader>ap` was repurposed from the old
+      -- `:AutoAgentsProject` shortcut — that command is still callable
+      -- directly via `:AutoAgentsProject`.)
       {
         "<leader>am",
         function() require("auto-agents").reingest_bootstrap_picker() end,
@@ -54,6 +55,11 @@ return {
         "<leader>ai",
         function() require("auto-agents").reassert_identity_picker() end,
         desc = "Re-assert runtime identity for a slot",
+      },
+      {
+        "<leader>ap",
+        function() require("auto-agents").permission_bootstrap_picker() end,
+        desc = "Bootstrap mailbox permissions for a slot (PERMISSION.md)",
       },
       { "<F5>", "<cmd>AutoAgents<cr>", mode = { "n", "t" }, desc = "Toggle auto-agents panel" },
       { "<F6>", "<cmd>AutoAgentsDock<cr>", mode = { "n", "t" }, desc = "Auto-agents nav dock" },

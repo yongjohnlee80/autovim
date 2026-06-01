@@ -92,7 +92,8 @@ Useful entry points:
 | Open navigation dock | `<F6>` or `<F12>` |
 | Focus admin | `<leader>a0` |
 | Focus agent slot | `<leader>a1` through `<leader>a9` |
-| Manage project config | `<leader>ap` |
+| Bootstrap mailbox permissions for a slot | `<leader>ap` |
+| Manage project config | `:AutoAgentsProject` |
 | Send to playground terminal | `:AutoAgentsTermSend <slot> <text>` |
 
 Each configured agent persists in TOML with fields such as `slot`, `kind`, `name`, `title`, `role`, `cwd`, `cmd`, `model`, `kb_scope`, `allowed_paths`, `manager`, and `bottom_margin`. The panel can also show self-reported agent status: `idle`, `waiting`, or `working`.
