@@ -8,6 +8,24 @@ return {
   -- Register formatters with conform for filetypes LazyVim doesn't cover.
   {
     "stevearc/conform.nvim",
+    -- Override LazyVim's stock <leader>cF ("Format Injected Langs") to do a
+    -- full forced buffer format instead. cF is our ONLY format key here:
+    -- <leader>cf (lowercase) is taken by code-runner.lua → :RunFile. LazyVim
+    -- binds cF to conform's "injected" formatter, which only touches fenced
+    -- code blocks and is a no-op on prose/table docs — which is why pressing
+    -- cF "did nothing" when trying to align a markdown table. Rebinding cF to
+    -- a full force-format makes it work (and bypasses the markdown
+    -- autoformat=false flag set in lua/custom/autocmds.lua).
+    keys = {
+      {
+        "<leader>cF",
+        function()
+          LazyVim.format({ force = true })
+        end,
+        mode = { "n", "x" },
+        desc = "Format (force)",
+      },
+    },
     opts = {
       formatters_by_ft = {
         toml = { "taplo" },
@@ -18,7 +36,7 @@ return {
         -- Markdown: registered for ON-DEMAND formatting only (prettier aligns
         -- GFM tables + tidies the doc). Save-time autoformat is disabled for
         -- markdown in lua/custom/autocmds.lua so KB docs aren't rewritten on
-        -- every save; format with <leader>cf / :LazyFormat when you want it.
+        -- every save; format with <leader>cF / :LazyFormat when you want it.
         markdown = { "prettierd", "prettier", stop_after_first = true },
         -- Python: ruff is provided by the python extra, but pin it here so
         -- formatting uses ruff's import sort + formatter deterministically.
