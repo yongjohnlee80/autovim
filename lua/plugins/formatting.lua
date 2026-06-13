@@ -15,6 +15,11 @@ return {
         mysql = { "sql_formatter" },
         plsql = { "sql_formatter" },
         yaml = { "prettierd", "prettier", stop_after_first = true },
+        -- Markdown: registered for ON-DEMAND formatting only (prettier aligns
+        -- GFM tables + tidies the doc). Save-time autoformat is disabled for
+        -- markdown in lua/custom/autocmds.lua so KB docs aren't rewritten on
+        -- every save; format with <leader>cf / :LazyFormat when you want it.
+        markdown = { "prettierd", "prettier", stop_after_first = true },
         -- Python: ruff is provided by the python extra, but pin it here so
         -- formatting uses ruff's import sort + formatter deterministically.
         python = { "ruff_organize_imports", "ruff_format" },
