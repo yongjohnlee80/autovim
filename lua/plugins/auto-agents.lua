@@ -61,6 +61,15 @@ return {
         function() require("auto-agents").permission_bootstrap_picker() end,
         desc = "Bootstrap mailbox permissions for a slot (PERMISSION.md)",
       },
+      -- ADR-0045: send the current editor buffer to a live agent slot.
+      -- Buffer captured at invocation → slot picker → "Instructions:"
+      -- input → file-path reference pushed via send_slot. Plugin
+      -- function ships in auto-agents v0.2.58+ (within `^0.2.0`).
+      {
+        "<leader>ab",
+        function() require("auto-agents").send_buffer_picker() end,
+        desc = "Send current buffer to an agent",
+      },
       { "<F5>", "<cmd>AutoAgents<cr>", mode = { "n", "t" }, desc = "Toggle auto-agents panel" },
       { "<F6>", "<cmd>AutoAgentsDock<cr>", mode = { "n", "t" }, desc = "Auto-agents nav dock" },
       { "<F12>", "<cmd>AutoAgentsDock<cr>", mode = { "n", "t" }, desc = "Auto-agents nav dock" },
