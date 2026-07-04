@@ -81,12 +81,11 @@ Common controls:
 
 The custom `auto-agents.nvim` panel replaces a single assistant terminal with a multi-slot orchestration surface.
 
-| Slot range | Role |
+| Slot | Role |
 |---|---|
 | `0` | Admin REPL for managing agents, projects, KBs, resources, and terminals. |
-| `1` through `5` | Main right-side agent panel, one window with swapped buffers. |
-| `6` through `9` | Sub-agent floats for temporary helpers or side-by-side review passes. |
-| `T1` through `T4` | Shared playground terminals mapped to `F1` through `F4`. |
+| `1` through `N` | Agent terminals, all in the one right-side panel (single window, swapped buffers). `N` is `panel.slot_count` — default 5, adjustable 2–9 via `slot add` / `slot remove`. Helpers and reviewers are just extra slots (the old slots-6-9 float tier was retired in the v0.1.24 flat-slot refactor). |
+| `T1` through `T4` | Shared playground terminals mapped to `F1` through `F4` — separate shells, not agent slots. |
 
 Useful entry points:
 

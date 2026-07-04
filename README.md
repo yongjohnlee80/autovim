@@ -225,7 +225,7 @@ I've tried other setups. I've clicked through menus. I've dragged and dropped. I
 
 ## Multi-agent panel
 
-[auto-agents.nvim](https://github.com/yongjohnlee80/auto-agents) replaces the single-agent claudecode panel with a **multi-slot orchestration window**. One right-side window hosts up to ten slots, plus four floating playground terminals. Every agent — Claude, Codex, Gemini, Copilot, or any shell — lives in its own slot with its own working directory, its own knowledge-base scope, and (optionally) its own diff-review behaviour.
+[auto-agents.nvim](https://github.com/yongjohnlee80/auto-agents) replaces the single-agent claudecode panel with a **multi-slot orchestration window**. One right-side window hosts slot 0 (admin) plus a configurable number of agent slots, alongside four floating playground terminals. Every agent — Claude, Codex, Gemini, Copilot, or any shell — lives in its own slot with its own working directory, its own knowledge-base scope, and (optionally) its own diff-review behaviour.
 
 ### The slot model
 
@@ -234,21 +234,20 @@ I've tried other setups. I've clicked through menus. I've dragged and dropped. I
        editor       │    auto-agents      │
                     │  ┌──────────────┐   │
                     │  │  winbar      │   │
-                    │  │  0 1 2 3 4 5 │   │   slots 0–5: main panel
+                    │  │  0 1 2 3 4 5 │   │   all slots: one right-side panel
                     │  └──────────────┘   │   (one window, swapped buffers)
                     │  ░░░░░░░░░░░░░░░░   │
                     │  ░  agent term  ░   │
                     │  ░░░░░░░░░░░░░░░░   │
                     └─────────────────────┘
 
-                   slots 6–9: snacks floats
-                   T1..T4    : playground floats (F1..F4)
+                   T1..T4 : playground floats (F1..F4) — shared shells, not agent slots
 ```
 
 - **Slot 0 — admin REPL.** A prompt buffer with a tokenizing dispatcher, tab completion, and a help system. This is where wizards run (`agent add`, `kb init`, `project import`, …) and where you read `<verb> ?` docs in a scrollable popup.
-- **Slots 1–5 — main panel.** Configured agents (Claude / Codex / Gemini / Copilot / generic) sharing one window. Empty slots fall back to `$SHELL`.
-- **Slots 6–9 — sub-agent floats.** For ephemeral helpers, code-review passes, anything you want side-by-side rather than tabbed.
-- **T1..T4 — playground terminals.** Shared shells for you and the agents; `term send <N> <text>` is paste-safe so an agent can dispatch a build into T2 without leaving its panel.
+- **Slots 1..N — agents.** Configured agents (Claude / Codex / Gemini / Copilot / generic) **all sharing the one right-side panel**, switched by buffer. Empty slots fall back to `$SHELL`.
+- **Configurable count.** `N` is `panel.slot_count` — **default 5, adjustable 2–9**. Grow or shrink it live from the admin REPL with `slot add` / `slot remove` (persisted to the TOML). The old slots-6-9 sub-agent *float* tier was retired in the v0.1.24 flat-slot refactor — ephemeral helpers and reviewers are now just extra slots in the same panel.
+- **T1..T4 — playground terminals.** A separate set of shared shells (not agent slots) for you and the agents; `term send <N> <text>` is paste-safe so an agent can dispatch a build into T2 without leaving its panel.
 
 ### Knowledge base (typed)
 
@@ -266,7 +265,7 @@ A typical session opens `:AutoAgents` (or `<F5>`) and lands on the admin slot. F
 - **Direct slot focus.** `<leader>a0`..`a9` jumps to that slot. Inside admin, the same digits work in normal mode (no leader needed).
 - **Navigation dock.** `<F6>` (or `<F12>`) opens a small right-edge float listing every slot plus the editor. Press a digit to jump, `e` to return to the editor, anything else to dismiss. Mode-safe — terminal mode doesn't leak into editor buffers.
 - **Help on demand.** `<verb> ?` (e.g. `agent add ?`, `kb init ?`) pops a scrollable floating help window. `help open <verb>` opens the underlying markdown if you want to edit it.
-- **Wizards.** `agent add`, `agent edit`, `kb init`, `project init` walk you through prompts inside the admin REPL. `<C-c>` aborts at any step. Default for `kind = "claude"`: `diff_review = true` so that agent's edits open as a diff split in your editor; sub-agents default to `false` so their edits stay in their own terminals.
+- **Wizards.** `agent add`, `agent edit`, `kb init`, `project init` walk you through prompts inside the admin REPL. `<C-c>` aborts at any step. Default for `kind = "claude"`: `diff_review = true` so that agent's edits open in the diff-review queue; additional/helper agents can set `diff_review = false` so their edits stay in their own terminals.
 
 ### Diff-review bridge
 
@@ -275,7 +274,8 @@ A typical session opens `:AutoAgents` (or `<F5>`) and lands on the admin slot. F
 ## What's Inside
 
 - **[LazyVim](https://www.lazyvim.org/)** -- because life's too short to configure everything from scratch, but too long to use someone else's config without tweaking it
-- **[auto-agents.nvim](https://github.com/yongjohnlee80/auto-agents)** -- another plugin I wrote: multi-agent orchestration panel. One right-side window holds up to ten slots — slot **0** is an admin REPL with a step-by-step wizard, slots **1–5** are main-window agent terminals, slots **6–9** open as floats. Plus four playground terminals **T1..T4** mapped to F1..F4. Specialized **knowledge-base** per project (typed: coding / wiki / research / ops / general / custom) with an immutable `raw/` and shared/private/isolated scopes. TOML-driven config under `<stdpath('config')>/.auto-agents-config/` survives `:cd`. `<F5>` toggles the panel; the admin's wizard creates agents, projects, and KBs by walking you through prompts. See [Multi-agent panel](#multi-agent-panel) below
+- **[auto-agents.nvim](https://github.com/yongjohnlee80/auto-agents)** -- another plugin I wrote: multi-agent orchestration panel. One right-side window holds slot **0** (an admin REPL with a step-by-step wizard) plus a **configurable number of agent slots** (default 5, up to 9, grown/shrunk live with `slot add` / `slot remove`) — all in the same panel, switched by buffer. Plus four playground terminals **T1..T4** mapped to F1..F4. Specialized **knowledge-base** per project (typed: coding / wiki / research / ops / library / general / custom) with an immutable `raw/` and shared/private/isolated scopes. TOML-driven config under `<stdpath('config')>/.auto-agents-config/` survives `:cd`. `<F5>` toggles the panel; the admin's wizard creates agents, projects, and KBs by walking you through prompts. See [Multi-agent panel](#multi-agent-panel) below
+- **[auto-finder.nvim](https://github.com/yongjohnlee80/auto-finder)** -- another plugin I wrote: the left-side finder panel and the family's second surface for shared state. Beyond file/mark navigation it hosts a **todo / task-management view** over the `auto-core.todo` store (bucket-grouped open/in-progress/deferred/completed/archived tasks, single-key actions to add/status/assign-to-agent, expandable frontmatter, event-driven refresh) — including a `.todo-list/automated/` **scheduled-task engine** (cron-driven agent tasks) — plus a **dbase section** that mounts nvim-dbee's drawer with at-rest-encrypted (`gpg`/`age`) connection vaults
 - **[claudecode.nvim](https://github.com/coder/claudecode.nvim)** -- soft dependency that auto-agents leans on for the **diff-review bridge**. Per-agent `diff_review = true` in the TOML routes that agent's proposed edits to a diff split in the editor (left current, right proposed; edit the right side, `:w` accepts, close rejects)
 - **LSP + Mason** -- language servers managed properly, so Go and TypeScript just work
 - **Treesitter** -- syntax highlighting that understands your code, not just your brackets
@@ -313,7 +313,7 @@ Connection setup for `lazysql` lives in [SQL Without Leaving Neovim](#sql-withou
 | `<leader>ac` | Toggle the panel |
 | `<leader>am` / `<leader>ai` / `<leader>ap` | Bootstrap-refresh a slot: re-ingest doc / re-assert identity / bootstrap mailbox permissions (PERMISSION.md, ADR-0036). Project commands: `:AutoAgentsProject`. |
 | `<leader>a0` | Focus admin (slot 0) — the REPL where wizards live |
-| `<leader>a1`..`a9` | Focus slot N — 1..5 in the main panel, 6..9 as floats |
+| `<leader>a1`..`a9` | Focus agent slot N in the right-side panel (active slots run 1..`slot_count`, default 5) |
 | `<leader>aU` | `:AutoVimUpdate` — pick T1..T4 and run `update.sh` inside that playground terminal |
 
 Inside the panel:
