@@ -125,6 +125,96 @@ the second run is the v0.3.14 script, which then hard-resets `.git/`
 to match origin. After that single bootstrap, future updates are
 single-shot.
 
+## Adding Other Languages
+
+AutoVim ships **Go, TypeScript, and Python** wired up out of the box, but it is
+not locked to them. It's built on [LazyVim](https://www.lazyvim.org/), which
+ships **40+ language "extras"** (Rust, C/C++, Java, Ruby, PHP, Elixir, Zig,
+Haskell, Kotlin, Scala, Clojure, Vue, Svelte, Astro, Tailwind, JSON, YAML,
+TOML, Docker, Terraform, Nix, and more). Enabling one pulls in that language's
+**LSP server (auto-installed via Mason), Treesitter parser, formatter, linter,
+and DAP adapter** together — so adding a language is normally a one-liner, not a
+research project.
+
+The three default extras live in [`lazyvim.json`](lazyvim.json):
+
+```json
+{
+  "extras": [
+    "lazyvim.plugins.extras.coding.blink",
+    "lazyvim.plugins.extras.lang.python",
+    "lazyvim.plugins.extras.lang.typescript",
+    "lazyvim.plugins.extras.lang.go"
+  ]
+}
+```
+
+### The update-safe way (recommended) — add it in `lua/custom/`
+
+Because `update.sh` **hard-resets tracked files** (see
+[Customizing Without Losing It on Update](#customizing-without-losing-it-on-update)),
+`lazyvim.json` is a tracked file — so enabling an extra with the interactive
+`:LazyExtras` UI would be **reverted on your next update** unless you commit it
+to your own fork. To add a language that *survives updates*, import the extra
+from a spec under the gitignored `lua/custom/plugins/` overlay instead:
+
+```lua
+-- lua/custom/plugins/lang-rust.lua
+return {
+  { import = "lazyvim.plugins.extras.lang.rust" },
+}
+```
+
+Restart nvim (or `:Lazy sync`); Mason installs `rust-analyzer`, the Treesitter
+parser, and the formatter automatically. Same pattern for any
+`lazyvim.plugins.extras.lang.*` module.
+
+### The quick way — `:LazyExtras`
+
+Run `:LazyExtras`, move to the language, press `x` to enable. Fast, but it
+**writes to the tracked `lazyvim.json`** — so either commit that change to your
+fork, or move the enablement into `lua/custom/` as above, or the next
+`update.sh` hard-reset will drop it.
+
+### Languages with no LazyVim extra (or custom tooling)
+
+For a language LazyVim doesn't cover, or to override the tooling for one it
+does, add the pieces directly in `lua/custom/plugins/` — the exact pattern the
+stock config already uses:
+
+- **LSP server** — merge into `nvim-lspconfig`'s `opts.servers` (see
+  [`lua/plugins/gopls.lua`](lua/plugins/gopls.lua) for the merge idiom).
+- **Formatter** — register it in `conform.nvim`'s `formatters_by_ft` (see
+  [`lua/plugins/formatting.lua`](lua/plugins/formatting.lua)).
+- **Linter** — register it in `nvim-lint`'s `linters_by_ft` (see
+  [`lua/plugins/lint.lua`](lua/plugins/lint.lua)).
+- **Treesitter parser** — add it to `nvim-treesitter`'s `opts.ensure_installed`.
+- **Mason binaries** — add the tool names to Mason's `ensure_installed` so
+  they install on first launch.
+
+```lua
+-- lua/custom/plugins/lang-lua-example.lua  (illustrative shape)
+return {
+  {
+    "neovim/nvim-lspconfig",
+    opts = { servers = { my_lsp = { --[[ settings ]] } } },
+  },
+  {
+    "stevearc/conform.nvim",
+    opts = { formatters_by_ft = { mylang = { "myfmt" } } },
+  },
+  {
+    "nvim-treesitter/nvim-treesitter",
+    opts = { ensure_installed = { "mylang" } },
+  },
+}
+```
+
+Everything under `lua/custom/` is gitignored, so these additions are never
+touched by updates. In short: AutoVim *prioritizes* Go/TypeScript/Python, but
+any language LazyVim or the wider Neovim ecosystem supports is one small overlay
+spec away.
+
 ## Why This Exists
 
 Some people meditate. Some do yoga. I open Neovim, fire up Claude, and write Go and TypeScript until the world makes sense again. This is my happy place -- a terminal where keystrokes are cheap, feedback loops are tight, and the AI pair programmer never judges my variable names.
@@ -551,7 +641,7 @@ Three references:
 - ❌ Remote has changes since last pull, local unchanged → drift detected → push refused, pull-merge required
 - ❌ Both edited concurrently → drift detected → conflict, manual resolve via git
 
-`<leader>rs` also commits a `pre-push` snap before the rsync, so `HEAD` always tracks what was last sent. That's how the model stays coherent across editing sessions: every successful push leaves `HEAD == remote`, and the next drift check uses that as its baseline.
+`<leader>rs` also commits a `pre-push` snap before the rsync, so `HEAD` always tracks what was last sent. That's how the model stays coherent across editing sessions: every successful push leaves `HEAD == remote`, and the next drift check uses that as its baseline. The full rationale for comparing against `HEAD` rather than the working tree is in [`docs/design-decisions/2026-04-26-head-based-drift-detection.md`](docs/design-decisions/2026-04-26-head-based-drift-detection.md).
 
 If you genuinely need to push past a drift warning (e.g., you know the remote change is something you want to overwrite — perhaps a leftover state from a prior misconfiguration), use `<leader>rS` (capital). It prompts via `vim.ui.select` to confirm; the friction is intentional.
 

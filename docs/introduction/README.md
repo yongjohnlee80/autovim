@@ -45,33 +45,37 @@ For mirrored projects, `auto-agents.nvim` adds a second layer: `project import` 
 
 ## Multi-Repo Git Graph
 
-AutoVim uses `gitsgraph.nvim`, a custom multi-repo dashboard built on top of `gitgraph.nvim`.
+The multi-repo git-graph dashboard now lives **inside `worktree.nvim`** as `worktree.graph`. It was originally a separate plugin (`gitsgraph.nvim`) but was absorbed into `worktree.nvim` in `v0.4.0` (ADR-0007), so there is no standalone `gitsgraph.nvim` to install — the dependency `worktree.nvim` already pulls it in (rendering is still delegated to `isakbm/gitgraph.nvim`).
 
-Open it with `<leader>gt` or `:GitsGraph`. The panel has three working areas:
+Open it with `<leader>gt` or `:WorktreeGraph`. The panel has three working areas:
 
 | Pane | Purpose |
 |---|---|
-| Repo picker | Lists discovered repositories under the saved root. |
+| Repo picker | Lists discovered repositories under the workspace root. |
 | Graph | Shows the selected repo history with the underlying Git graph renderer. |
 | Preview | Follows the selected commit with `git show --stat`. |
 
-The important specialization is worktree awareness. `gitsgraph.nvim` deduplicates linked worktrees by their common Git directory, so five worktrees for one project show as one repository row with a unified history. Pressing `<CR>` opens a full commit diff in a float instead of taking over the editor with a tab.
+The important specialization is worktree awareness. `worktree.graph` deduplicates linked worktrees by their common Git directory, so five worktrees for one project show as one repository row with a unified history. Pressing `<CR>` opens a full commit diff in a float instead of taking over the editor with a tab.
 
 Common controls:
 
 | Action | Usage |
 |---|---|
-| Toggle graph | `<leader>gt` |
+| Toggle graph | `<leader>gt` / `:WorktreeGraph` |
 | Select repo 1-9 | `1` through `9` in the picker |
 | Cycle panes | `<Tab>` / `<S-Tab>` |
 | Fetch selected repo | `f` |
 | Fetch all repos | `F` |
-| Rescan root | `r` or `:GitsGraphRefresh` |
-| Set graph root | `:GitsGraphSetRoot [dir]` |
+| Pull worktree(s) | `p` |
+| Checkout / track branch | `C` |
+| Create new branch / worktree | `W` |
+| Destroy worktree + local branch | `D` |
+| Rescan / refresh | `r` or `:WorktreeGraphRefresh` |
+| Close | `q` / `<Esc>` |
 
-![GitsGraph dashboard](assets/images/gitsgraph-dashboard.png)
+![Multi-repo git graph dashboard](assets/images/gitsgraph-dashboard.png)
 
-![GitsGraph demo](assets/gifs/gitsgraph-browse.gif)
+![Multi-repo git graph demo](assets/gifs/gitsgraph-browse.gif)
 
 ## Auto-Agent Panel
 
