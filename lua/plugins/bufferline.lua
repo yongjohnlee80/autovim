@@ -72,22 +72,10 @@ return {
         highlight = "Directory",
         text_align = "left",
       })
-      -- The dbase section (`[3: dbase]`) mounts nvim-dbee's drawer into
-      -- the auto-finder panel window, and dbee stamps the drawer buffer
-      -- `filetype = "dbee"` (nvim-dbee ui/drawer/init.lua). Without this
-      -- entry bufferline sees a non-matching filetype in the top-left
-      -- panel column and paints buffer tabs over our winbar — the
-      -- "auto-finder" heading space isn't reserved for the dbase view
-      -- like it is for every other section. dbee's result/call_log
-      -- tiles are ALSO `filetype = "dbee"` but live in `:botright`
-      -- bottom splits, so bufferline's top-row offset scan
-      -- (iterate_col_layout) never treats them as the sidebar.
-      table.insert(opts.options.offsets, {
-        filetype = "dbee",
-        text = "auto-finder",
-        highlight = "Directory",
-        text_align = "left",
-      })
+      -- NOTE: the dbase section mounts nvim-dbee's drawer (filetype
+      -- "dbee") into the panel window, but auto-finder >= v0.2.64
+      -- re-stamps that buffer filetype "auto-finder", so the entry
+      -- above already covers dbase — no separate "dbee" offset needed.
       -- Function-form click commands bypass bufferline's vim.cmd
       -- handler entirely (commands.lua:41-43 — `if type(command) ==
       -- "function" then command(id) end`), so winfixbuf doesn't get a
