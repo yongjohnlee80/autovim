@@ -1,12 +1,14 @@
 -- auto-finder.nvim — multi-section file explorer with bundled neo-tree fork.
 --
 -- Plugin source: github.com/yongjohnlee80/auto-finder.nvim. Pinned via
--- `version = "^0.2.0"` (caret) — v0.2.0 is the auto-core consumer
--- migration: panel singleton via auto-core.ui.panel, state via
+-- `version = "^0.3.0"` (caret). The 0.2 line was the auto-core consumer
+-- migration (panel singleton via auto-core.ui.panel, state via
 -- auto-core.state.namespace, file-filter prefs via auto-core.files,
 -- live-refresh via auto-core.fs.watch, sections via
--- auto-core.ui.section + worktree:switched. Future v0.2.x releases
--- are additive-only per the auto-core-maintenance convention.
+-- auto-core.ui.section + worktree:switched). v0.3.0 adds the ADR-0048
+-- tests/debug panels' Config section, the `i` run-output view, `O`
+-- toggle-all across views, and the debug Entry-Points rework
+-- (run-in-terminal / debug / navigate / launch.json export).
 --
 -- For local development against ~/Source/Projects/nvim-plugins/auto-finder.nvim,
 -- swap the spec line for:
@@ -28,7 +30,7 @@
 return {
   {
     "yongjohnlee80/auto-finder.nvim",
-    version = "^0.2.0",
+    version = "^0.3.0",
     -- Dependencies:
     --   - nui / plenary / web-devicons: bundled neo-tree fork's deps
     --   - auto-core.nvim: hard dep as of v0.2.0 (panel / state / log /
