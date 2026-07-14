@@ -57,9 +57,9 @@ FAMILY_PLUGINS_DEFAULT=(
   "auto-core.nvim"
   "auto-agents"
   "auto-finder.nvim"
+  "auto-run.nvim"
   "md-harpoon.nvim"
   "worktree.nvim"
-  "gobugger.nvim"
   "remote-sync.nvim"
 )
 
