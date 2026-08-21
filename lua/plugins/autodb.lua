@@ -43,7 +43,8 @@
 --
 --   <leader>Dr   run this SQL buffer      <leader>Dc   choose a connection
 --   <leader>DR   run the selection        <leader>Dh   script history
---   <leader>Dl   sign in (retry / switch)  <leader>DX   maintenance
+--   <leader>Dw   choose / create workspace <leader>Dl   sign in (retry)
+--   <leader>DX   maintenance
 --
 -- ── State ──────────────────────────────────────────────────────────
 -- `setup()` connects NOTHING. The first `<leader>D` command resolves the
@@ -66,10 +67,11 @@ return {
     build = "make build",
     dependencies = { "auto-core.nvim" },
     cmd = { "AutodbRun", "AutodbConnection", "AutodbHistory", "AutodbLogin",
-      "AutodbMaintenance" },
+      "AutodbWorkspace", "AutodbMaintenance" },
     keys = {
       { "<leader>Dr", "<cmd>AutodbRun<cr>", desc = "autodb: run this SQL buffer" },
       { "<leader>DR", ":AutodbRun<cr>", mode = "v", desc = "autodb: run the selection" },
+      { "<leader>Dw", "<cmd>AutodbWorkspace<cr>", desc = "autodb: choose / create a workspace" },
       { "<leader>Dc", "<cmd>AutodbConnection<cr>", desc = "autodb: choose a connection" },
       { "<leader>Dh", "<cmd>AutodbHistory<cr>", desc = "autodb: script history" },
       { "<leader>Dl", "<cmd>AutodbLogin<cr>", desc = "autodb: sign in" },
