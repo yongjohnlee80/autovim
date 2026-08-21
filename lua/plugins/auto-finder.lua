@@ -100,6 +100,27 @@ return {
             visible = true,
             hide_dotfiles = false,
             hide_gitignored = false,
+            -- ADR-0059 §3.5: never build items for git plumbing or
+            -- installed dependencies. Nobody browses `.git/objects` in
+            -- a file tree, and because `hide_gitignored = false` above
+            -- keeps gitignored entries visible, these would otherwise
+            -- be created, rendered, and walked on every expand. A
+            -- project parent holding 16 repos / 60 `.git` dirs is the
+            -- difference between 66,819 and 18,746 directories.
+            --
+            -- Safe only while `use_libuv_file_watcher = false` (the
+            -- default): the fork's worktree-root detection looks for a
+            -- `.git` CHILD ITEM, but that whole branch is gated on the
+            -- libuv watcher. If you ever enable it, drop `.git` here.
+            never_show = { ".git", "node_modules" },
+            -- ADR-0059 §2.4: `ignored.mark_ignored` runs on EVERY
+            -- scan, gated only on this list being non-empty — and its
+            -- default (`.neotreeignore`, `.ignore`) is non-empty. For
+            -- each unique parent it walks every ancestor doing one
+            -- `fs_stat` per filename, which measured as the dominant
+            -- per-scan cost. We use neither file, so the entire walk
+            -- was waste; emptying the list short-circuits it.
+            ignore_files = {},
           },
           check_gitignore_in_search = false,
           components = {
