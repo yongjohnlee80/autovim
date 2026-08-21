@@ -43,12 +43,16 @@
 --
 --   <leader>Dr   run this SQL buffer      <leader>Dc   choose a connection
 --   <leader>DR   run the selection        <leader>Dh   script history
---   <leader>DX   maintenance (restart / refresh)
+--   <leader>Dl   sign in (retry / switch)  <leader>DX   maintenance
 --
 -- ── State ──────────────────────────────────────────────────────────
 -- `setup()` connects NOTHING. The first `<leader>D` command resolves the
 -- binary, starts the daemon if none is listening, and prompts for a
--- passphrase. Opening Neovim costs nothing.
+-- passphrase — masked, via `inputsecret()`. Opening Neovim costs nothing.
+--
+-- Get the passphrase wrong and `<leader>Dl` prompts again on the same
+-- live socket; it also switches user on a daemon that is already signed
+-- in. Recovering from a typo does not cost a restart.
 --
 -- The daemon listens on a unix socket (0600, per-user directory) and is
 -- SHARED with `autodb --ui` and every other Neovim instance. Configure
@@ -61,12 +65,14 @@ return {
     version = "^0.1.0",
     build = "make build",
     dependencies = { "auto-core.nvim" },
-    cmd = { "AutodbRun", "AutodbConnection", "AutodbHistory", "AutodbMaintenance" },
+    cmd = { "AutodbRun", "AutodbConnection", "AutodbHistory", "AutodbLogin",
+      "AutodbMaintenance" },
     keys = {
       { "<leader>Dr", "<cmd>AutodbRun<cr>", desc = "autodb: run this SQL buffer" },
       { "<leader>DR", ":AutodbRun<cr>", mode = "v", desc = "autodb: run the selection" },
       { "<leader>Dc", "<cmd>AutodbConnection<cr>", desc = "autodb: choose a connection" },
       { "<leader>Dh", "<cmd>AutodbHistory<cr>", desc = "autodb: script history" },
+      { "<leader>Dl", "<cmd>AutodbLogin<cr>", desc = "autodb: sign in" },
       { "<leader>DX", "<cmd>AutodbMaintenance<cr>", desc = "autodb: maintenance" },
     },
     opts = {},
