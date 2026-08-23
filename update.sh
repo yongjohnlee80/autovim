@@ -237,24 +237,39 @@ hard_reset_to_origin() {
   # `git describe --tags` in ~/.config/nvim reported a description based on
   # whatever old tag it happened to have (v0.3.25-…) even though the CONTENT
   # was current — so "what version am I on?" answered wrong.
+  # Three ways to reach the new tree, in order, because only the FIRST needs
+  # the configured remote to be usable.
+  #
+  # `origin` is commonly an SSH URL, and a second machine may have no key
+  # registered for it — while `$REPO` (the HTTPS upstream that
+  # `overlay_tracked_tree` already clones from, moments later) works fine with
+  # no credentials at all. Dying on the SSH failure stranded an update that had
+  # a perfectly good path available, which is what a real report looked like.
+  #
+  # If neither reaches the network we do NOT die: the rsync overlay below is a
+  # complete update mechanism on its own — it is exactly what runs for a
+  # checkout with no `.git/` at all. The local branch ref stays where it was,
+  # which is worth a loud warning but not a dead end.
+  local ref="" fetch_err=""
   log "Fetching origin/$target_branch (with tags)"
-  local fetch_err
-  if ! fetch_err="$(git -C "$NVIM_CONFIG" fetch --tags origin "$target_branch" 2>&1)"; then
-    # Report git's OWN message. The previous `|| die "git fetch … failed"`
-    # discarded stderr, so a real report of this failure arrived with no reason
-    # in it and had to be diagnosed by guesswork.
+  if fetch_err="$(git -C "$NVIM_CONFIG" fetch --tags origin "$target_branch" 2>&1)"; then
+    ref="origin/$target_branch"
+  else
     warn "git fetch origin $target_branch failed in $NVIM_CONFIG:"
     printf '%s\n' "$fetch_err" | sed 's/^/    /' >&2
-    warn "Common causes: no SSH key for $(git -C "$NVIM_CONFIG" remote get-url origin 2>/dev/null)," 
-    warn "  no network, or a shallow checkout (see --unshallow above)."
-    die "cannot continue without fetching origin/$target_branch"
-  fi
-
-  if [[ -n "$local_branch" && "$local_branch" != "$target_branch" ]]; then
-    if is_legacy_branch "$local_branch"; then
-      announce_branch_migration "$local_branch" "$target_branch"
+    warn "Falling back to $REPO"
+    if fetch_err="$(git -C "$NVIM_CONFIG" fetch --tags "$REPO" "$target_branch" 2>&1)"; then
+      ref="FETCH_HEAD"
+      log "Fetched from $REPO instead of origin."
+      warn "Your 'origin' remote is unusable on this machine. To fix it permanently:"
+      warn "    git -C $NVIM_CONFIG remote set-url origin $REPO"
     else
-      warn "Local branch '$local_branch' differs from '$target_branch'; switching."
+      warn "Fallback fetch from $REPO also failed:"
+      printf '%s\n' "$fetch_err" | sed 's/^/    /' >&2
+      warn "Skipping the git reset — the file overlay below will still update"
+      warn "  your tracked files. Your branch ref stays at its current commit,"
+      warn "  so re-run update.sh once the network or remote is usable."
+      return 0
     fi
   fi
 
@@ -267,9 +282,9 @@ hard_reset_to_origin() {
   # `-f` discards local modifications to TRACKED files, which is AutoVim's
   # documented contract (user-owned changes belong in the gitignored
   # `lua/custom/`). Forks wanting other semantics set AUTOVIM_REPO.
-  log "Checking out $target_branch at origin/$target_branch"
-  git -C "$NVIM_CONFIG" checkout -f -B "$target_branch" "origin/$target_branch" --quiet \
-    || die "git checkout -B $target_branch origin/$target_branch failed in $NVIM_CONFIG"
+  log "Checking out $target_branch at $ref"
+  git -C "$NVIM_CONFIG" checkout -f -B "$target_branch" "$ref" --quiet \
+    || die "git checkout -B $target_branch $ref failed in $NVIM_CONFIG"
 }
 
 overlay_tracked_tree() {
@@ -351,8 +366,11 @@ maybe_selfupdate() {
   # against a real remote. Shipped in v0.4.5 and reported from a second Omarchy
   # box as "git fetch origin main failed". A plain fetch costs a little more
   # traffic and cannot damage the checkout.
+  # Same fallback as hard_reset_to_origin: origin may be an unusable SSH URL
+  # on this machine while $REPO needs no credentials. A self-update that cannot
+  # reach either simply does not happen — never fatal.
   if ! git -C "$NVIM_CONFIG" fetch --quiet origin "$branch" 2>/dev/null; then
-    return 0
+    git -C "$NVIM_CONFIG" fetch --quiet "$REPO" "$branch" 2>/dev/null || return 0
   fi
   if ! git -C "$NVIM_CONFIG" show "FETCH_HEAD:update.sh" > "$tmp" 2>/dev/null; then
     return 0
