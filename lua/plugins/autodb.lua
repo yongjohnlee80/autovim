@@ -65,7 +65,7 @@ return {
   {
     "yongjohnlee80/autodb",
     -- Caret pin: tracks v0.1.x, refuses v0.2+ unprompted.
-    version = "^0.1.0",
+    version = "^0.2.0",
     build = "make build",
     dependencies = { "auto-core.nvim" },
     cmd = { "AutodbRun", "AutodbConnection", "AutodbHistory", "AutodbLogin",

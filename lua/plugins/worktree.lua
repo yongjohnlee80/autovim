@@ -1,7 +1,8 @@
 -- worktree.nvim — bare-repo + sibling-worktree workspace manager.
 --
 -- Plugin source: github.com/yongjohnlee80/worktree.nvim. Pinned via
--- `version = "^0.4.0"` (caret) — v0.4.0 is the auto-core consumer
+-- `version = "^0.5.0"` (caret) — v0.5.0 powers auto-finder's repos panel
+-- (ADR-0060) and reworked the store's locking contract. The 0.4 line was
 -- release that also absorbed the multi-repo graph dashboard from the
 -- now-archived gitsgraph.nvim. Future v0.4.x releases are additive-
 -- only per the auto-core-maintenance convention.
@@ -16,7 +17,7 @@
 return {
   {
     "yongjohnlee80/worktree.nvim",
-    version = "^0.4.0",
+    version = "^0.5.0",
     -- Dependencies:
     --   - auto-core.nvim: hard dep as of v0.4.0 (canonical
     --     git.worktree, ui.float.multi, lsp.reset, git.fetch /

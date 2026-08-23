@@ -370,6 +370,16 @@ io.stdout:write("\n[13] every caret-pinned plugin is suppliable by lazy-lock.jso
 -- plugin's version"; a committed lock says "these are the versions we support".
 -- A plugin with the first and not the second is the `autodb` bug: declared,
 -- expected, and silently absent on a fresh install.
+--
+-- LIMIT OF THIS CHECK, so nobody reads more into a green than is there: it
+-- proves PRESENCE, not SATISFACTION. The lock stores commit SHAs, so deciding
+-- whether the locked commit actually falls inside `^X.Y.Z` needs the plugin's
+-- git history, which a headless config-surface suite cannot assume is checked
+-- out. A lock left pointing at a v0.1.x commit after the caret moved to ^0.2.0
+-- would still pass here and would still hand a fresh install the wrong version.
+-- That is what the release step in [[autovim-release-workflow]] §4d exists for:
+-- regenerate the lock from a known-good install whenever a caret moves, and
+-- verify with `git describe --tags --exact-match <locked-sha>` per plugin.
 ok("found caret-pinned plugins to check", #all_pinned > 0, "count=" .. #all_pinned)
 local lock_tbl
 do

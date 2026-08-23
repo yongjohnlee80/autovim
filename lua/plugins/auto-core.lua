@@ -1,7 +1,9 @@
 -- auto-core.nvim — foundation library for the AutoVim plugin family.
 --
 -- Plugin source: github.com/yongjohnlee80/auto-core.nvim. Pinned via
--- `version = "^0.1.0"` (caret) so lazy.nvim auto-tracks v0.1.x
+-- `version = "^0.2.0"` (caret) so lazy.nvim auto-tracks v0.2.x. v0.2.0 is
+-- the release that added git.log / git.diff / ui.marks / ui.diffview, which
+-- worktree.nvim ^0.5.0 and auto-finder ^0.4.0 both require.
 -- patch + minor releases (additive-only per the auto-core-maintenance
 -- convention) and refuses to cross to v0.2+ unprompted.
 --
@@ -43,7 +45,7 @@ return {
     "yongjohnlee80/auto-core.nvim",
     -- Caret pin: tracks v0.1.x (auto-update within the minor line),
     -- refuses v0.2+ until the bump is explicit.
-    version = "^0.1.0",
+    version = "^0.2.0",
     -- plenary is auto-core's only hard dep per ADR §"Resolutions" #3.
     dependencies = { "nvim-lua/plenary.nvim" },
     -- Consumer-owned keymap for the on-demand log viewer
