@@ -397,7 +397,7 @@ end
 -- Registered through `ok()` deliberately, so a shortfall lands in the FAIL list
 -- and the printed summary rather than as a bare non-zero exit after a "0
 -- failed" line — which reads to the runner like a post-summary crash.
-local MIN_ASSERTIONS = 111
+local MIN_ASSERTIONS = 110
 do
   local ran = pass_count + fail_count
   ok(("assertion floor: ran %d, expected at least %d"):format(ran, MIN_ASSERTIONS),

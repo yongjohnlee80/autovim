@@ -29,8 +29,10 @@
 -- turns that require into an on-demand load, so lazy-by-default is
 -- preserved.
 --
--- nvim-dbee is still installed at this point; its drawer simply stops
--- being mounted. Removing dbee is M8, together with the autovim minor
+-- dbee was retired in v0.4.0 (M8): AutoVim no longer declares, installs or
+-- updates it, and it is not a fallback. autodb is the only dbase backend.
+-- Historical note — the M7 step merely stopped mounting dbee's drawer; the
+-- removal itself landed with the autovim minor
 -- bump.
 --
 -- ── Keys ───────────────────────────────────────────────────────────
@@ -84,14 +86,14 @@ return {
     end,
   },
 
-  -- SQL highlighting must not depend on dbee.
+  -- SQL highlighting is autodb's own requirement.
   --
-  -- The `sql` parser is currently requested by lua/plugins/nvim-dbee.lua,
-  -- so deleting that file in M8 would silently take SQL highlighting with
-  -- it — a regression flagged in ADR-0058 §2. Requesting it here as well
-  -- makes the parser autodb's own requirement: scripts, notes and the
-  -- history preview are all SQL buffers. `ensure_installed` is a list
-  -- extend, so both requests coexist harmlessly until dbee goes.
+  -- The `sql` parser used to be requested by lua/plugins/nvim-dbee.lua, so
+  -- deleting that file in M8 would have silently taken SQL highlighting with
+  -- it — a regression flagged in ADR-0058 §2 and pre-empted by requesting it
+  -- here too. dbee is now gone (v0.4.0) and this is the ONLY request, which is
+  -- exactly why it has to stay: scripts, notes and the history preview are all
+  -- SQL buffers.
   {
     "nvim-treesitter/nvim-treesitter",
     opts = function(_, opts)

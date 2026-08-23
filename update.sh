@@ -162,17 +162,17 @@ migrate_lazysql_to_custom() {
     warn "v0.3.10 migration: lua/custom/plugins/ missing — skipping lazysql seed. Re-run after manually creating lua/custom/."
     return
   fi
-  log "v0.3.10 migration: seeding $target so <C-q> keeps working until you migrate to nvim-dbee"
+  log "v0.3.10 migration: seeding $target so <C-q> keeps working until you migrate to autodb"
   cat > "$target" <<'LAZYSQL_LUA'
 -- DEPRECATED — preserved by AutoVim's v0.3.10 update.sh migration.
 --
--- AutoVim retired the stock lazysql float in v0.3.10 in favor of
--- nvim-dbee (see `:Dbee`, the auto-finder dbase section, and SQL
--- completion via cmp-dbee). This file keeps the old `<C-q>` lazysql
--- float available for users who haven't migrated yet — but it lives in
--- your user-owned `lua/custom/` layer now: AutoVim will never overwrite
--- it on `update.sh`, and you own its lifecycle from here. Delete the
--- file once you're comfortable with the nvim-dbee workflow.
+-- AutoVim retired the stock lazysql float in v0.3.10. The replacement is
+-- autodb (`<leader>D*`, and the auto-finder `dbase` section) as of v0.4.0 —
+-- nvim-dbee, which briefly held that role, is fully deprecated and no longer
+-- installed. This file keeps the old `<C-q>` lazysql float available for users
+-- who haven't migrated yet — but it lives in your user-owned `lua/custom/`
+-- layer now: AutoVim will never overwrite it on `update.sh`, and you own its
+-- lifecycle from here. Delete the file once you're comfortable with autodb.
 --
 -- Note: this spec assumes the `lazysql` binary is on PATH. AutoVim no
 -- longer `go install`s it for you in v0.3.10+; install manually with:
@@ -191,7 +191,7 @@ return {
           })
         end,
         mode = { "n", "t" },
-        desc = "LazySQL (deprecated; see :Dbee)",
+        desc = "LazySQL (deprecated; see autodb, <leader>Dc)",
       },
     },
   },

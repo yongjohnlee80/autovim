@@ -35,17 +35,19 @@ return {
     --   - nui / plenary / web-devicons: bundled neo-tree fork's deps
     --   - auto-core.nvim: hard dep as of v0.2.0 (panel / state / log /
     --     section / fs.watch / files surfaces)
-    --   - nvim-dbee: hard dep for the dbase section (auto-finder
-    --     v0.2.16+). The plugin entry — including the `build` hook
-    --     that downloads dbee's Go binary on `:Lazy sync` — lives in
-    --     lua/plugins/nvim-dbee.lua. We list it here as a string so
-    --     lazy.nvim resolves load order without redefining the spec.
+    --
+    -- NOT a dependency any more: `kndndrj/nvim-dbee`. It was a hard dep for
+    -- the dbase section from v0.2.16, and listing it here is what pulled it
+    -- into every install. dbee is fully deprecated as of v0.4.0 (ADR-0063 /
+    -- autodb roadmap M8) — autodb powers `dbase` and owns connection storage,
+    -- users and encryption itself. autodb is deliberately NOT listed here
+    -- either: the dbase section probes for it and degrades to a self-
+    -- describing placeholder, so the finder stays usable without it.
     dependencies = {
       "MunifTanjim/nui.nvim",
       "nvim-lua/plenary.nvim",
       "nvim-tree/nvim-web-devicons",
       "auto-core.nvim",
-      "kndndrj/nvim-dbee",
     },
     cmd = { "AutoFinder", "AutoFinderFocus", "AutoFinderResize", "AutoFinderReset" },
     keys = {

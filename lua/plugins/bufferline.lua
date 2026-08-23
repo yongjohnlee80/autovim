@@ -72,8 +72,9 @@ return {
         highlight = "Directory",
         text_align = "left",
       })
-      -- NOTE: the dbase section mounts nvim-dbee's drawer (filetype
-      -- "dbee") into the panel window, but auto-finder >= v0.2.64
+      -- NOTE: the dbase section used to mount nvim-dbee's drawer (filetype
+      -- "dbee") into the panel window; dbee was retired in v0.4.0 and autodb's
+      -- explorer stamps the canonical panel filetype. auto-finder >= v0.2.64
       -- re-stamps that buffer filetype "auto-finder", so the entry
       -- above already covers dbase — no separate "dbee" offset needed.
       -- Function-form click commands bypass bufferline's vim.cmd

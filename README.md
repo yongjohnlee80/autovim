@@ -44,7 +44,7 @@ then quit and relaunch nvim. Confirm `lazy-lock.json` now pins `auto-agents`, `a
 
 ### Upgrading from v0.3.7 — `<C-q>` lazysql is now opt-in
 
-v0.3.10 retires the stock `<C-q>` lazysql float as AutoVim's default SQL surface. The new recommended workflow is [nvim-dbee](https://github.com/kndndrj/nvim-dbee), surfaced via `:Dbee` and the auto-finder panel's **dbase section** (mounts dbee's drawer in the panel, with schema-aware SQL completion in scratchpads via `cmp-dbee` bridged into blink.cmp). See [SQL Without Leaving Neovim](#sql-without-leaving-neovim).
+v0.3.10 retired the stock `<C-q>` lazysql float as AutoVim's default SQL surface. The workflow as of **v0.4.0** is [autodb](https://github.com/yongjohnlee80/autodb) — a Go backend I wrote, driven from `<leader>D*` and surfaced in the auto-finder panel's **dbase section**. `nvim-dbee` held that role briefly in the 0.3 line and is **fully removed in v0.4.0**: autodb owns connection storage, users, roles and at-rest encryption on its own backend, so the finder no longer carries a vault of its own. See [SQL Without Leaving Neovim](#sql-without-leaving-neovim).
 
 **Existing users keep `<C-q>` automatically.** Re-running `install.sh` (which invokes `update.sh` on an existing checkout) triggers a one-shot v0.3.10 migration that seeds `lua/custom/plugins/lazysql.lua` with the deprecated `<C-q>` binding when your pre-overlay tree had the stock lazysql spec. The migration is idempotent and respects manual edits under `lua/custom/`. Fresh installs from v0.3.10 onwards don't get lazysql at all — `install.sh` no longer `go install`s the binary, so `<C-q>` is opt-in (drop your own `lua/custom/plugins/lazysql.lua` if you want it back).
 
@@ -305,14 +305,14 @@ A typical session opens `:AutoAgents` (or `<F5>`) and lands on the admin slot. F
 
 - **[LazyVim](https://www.lazyvim.org/)** -- because life's too short to configure everything from scratch, but too long to use someone else's config without tweaking it
 - **[auto-agents.nvim](https://github.com/yongjohnlee80/auto-agents)** -- another plugin I wrote: multi-agent orchestration panel. One right-side window holds slot **0** (an admin REPL with a step-by-step wizard) plus a **configurable number of agent slots** (default 5, up to 9, grown/shrunk live with `slot add` / `slot remove`) — all in the same panel, switched by buffer. Plus four playground terminals **T1..T4** mapped to F1..F4. Specialized **knowledge-base** per project (typed: coding / wiki / research / ops / library / general / custom) with an immutable `raw/` and shared/private/isolated scopes. TOML-driven config under `<stdpath('config')>/.auto-agents-config/` survives `:cd`. `<F5>` toggles the panel; the admin's wizard creates agents, projects, and KBs by walking you through prompts. See [Multi-agent panel](#multi-agent-panel) below
-- **[auto-finder.nvim](https://github.com/yongjohnlee80/auto-finder)** -- another plugin I wrote: the left-side finder panel and the family's second surface for shared state. Beyond file/mark navigation it hosts a **todo / task-management view** over the `auto-core.todo` store (bucket-grouped open/in-progress/deferred/completed/archived tasks, single-key actions to add/status/assign-to-agent, expandable frontmatter, event-driven refresh) — including a `.todo-list/automated/` **scheduled-task engine** (cron-driven agent tasks) — plus a **dbase section** that mounts nvim-dbee's drawer with at-rest-encrypted (`gpg`/`age`) connection vaults
+- **[auto-finder.nvim](https://github.com/yongjohnlee80/auto-finder)** -- another plugin I wrote: the left-side finder panel and the family's second surface for shared state. Beyond file/mark navigation it hosts a **todo / task-management view** over the `auto-core.todo` store (bucket-grouped open/in-progress/deferred/completed/archived tasks, single-key actions to add/status/assign-to-agent, expandable frontmatter, event-driven refresh) — including a `.todo-list/automated/` **scheduled-task engine** (cron-driven agent tasks) — plus a **dbase section** hosting [autodb](https://github.com/yongjohnlee80/autodb)'s explorer (connections, workspaces, notes and script history, with at-rest encryption and per-user roles owned by autodb's own backend)
 - **[claudecode.nvim](https://github.com/coder/claudecode.nvim)** -- soft dependency that auto-agents leans on for the **diff-review bridge**. Per-agent `diff_review = true` in the TOML routes that agent's proposed edits to a diff split in the editor (left current, right proposed; edit the right side, `:w` accepts, close rejects)
 - **LSP + Mason** -- language servers managed properly, so Go and TypeScript just work
 - **Treesitter** -- syntax highlighting that understands your code, not just your brackets
 - **[nvim-dap](https://github.com/mfussenegger/nvim-dap) + [nvim-dap-view](https://github.com/igorlfs/nvim-dap-view) + [nvim-dap-go](https://github.com/leoluz/nvim-dap-go)** -- delve-powered Go debugging with a minimalist inspection panel. Breakpoints, step controls, watches, attach-to-process, and debug-test-under-cursor
 - **[worktree.nvim](https://github.com/yongjohnlee80/worktree.nvim)** -- in-editor worktree switcher I wrote. Hops between repos/worktrees under the directory you opened nvim in, with safety rails on add/remove and ghost-buffer cleanup. Comes with a lualine component and optional LSP re-anchor on switch
 - **[gobugger.nvim](https://github.com/yongjohnlee80/gobugger.nvim)** -- another plugin I wrote. Opinionated Go debugger: launch.json-driven, worktree-aware, delve-integrated, dap-view as the UI. Picker with session cache, scaffolder for new test/main entries, doctor command for diagnosing build/worktree issues
-- **[lazysql](https://github.com/jorgerojas26/lazysql)** -- a TUI SQL client hoisted into a floating window via `snacks.terminal`. Pre-configured connections, one keystroke to toggle, and the process stays alive between toggles so you don't pay the connection cost twice
+- **[autodb](https://github.com/yongjohnlee80/autodb)** -- another project I wrote: a Go database backend that replaced `lazysql` and then `nvim-dbee`. Connections encrypted at rest, `admin`/`editor`/`reader` roles, an audit trail of every executed script (account + IP), IP allowlisting, streaming results, and a refusal to run an `UPDATE`/`DELETE` with no `WHERE`. Driven from `<leader>D*`, with the explorer hosted in auto-finder's **dbase** section — and it runs standalone as a TUI, so the same tool works over SSH
 - **[kulala.nvim](https://github.com/mistweaverco/kulala.nvim)** -- HTTP client driven by `.http` files. Replaced `rest.nvim` (whose luarocks build chain was miserable on macOS). Per-project scaffold under `.rest/` via `<leader>Rs`, a single gitignored `http-client.private.env.json` with generic keys (`BASE_URL`, `USER_NAME`, `USER_PASS`, `API_KEY`), and `<leader>Rr` / `<leader>Rl` / `<leader>Ra` to run / replay / run-all
 - **[md-render.nvim](https://github.com/delphinus/md-render.nvim)** -- terminal-native Markdown previewer with rich layout: tables with box-drawing borders, callouts with icons + colored bars, fenced code blocks with treesitter syntax highlighting, OSC 8 hyperlinks, and inline images / video / Mermaid diagrams via the Kitty graphics protocol. The plugin's bundled preview is a single float; we layer [`yongjohnlee80/md-harpoon.nvim`](https://github.com/yongjohnlee80/md-harpoon.nvim) on top so `<leader>m{q,w,e,a,s,d}` host six coexisting floats arranged in a 2×3 grid — top row q/w/e, bottom row a/s/d — with per-slot cursor memory and a fuzzy file picker on `<leader>mf`. Replaces `glow.nvim`
 - **Floating playground terminals** — four toggleable floats on `F1`–`F4`, owned by [auto-agents.nvim](https://github.com/yongjohnlee80/auto-agents) (the `T1..T4` slots in the [Multi-agent panel](#multi-agent-panel) section). Each has its own persistent shell, marker-based lookup that survives `:cd`, and works from normal *and* terminal mode. `:AutoAgentsTermSend <slot> <text>` (paste-safe) lets agents drive them programmatically
@@ -324,14 +324,14 @@ A typical session opens `:AutoAgents` (or `<F5>`) and lands on the admin slot. F
 One external binary this config relies on that doesn't install itself through Lazy or Mason:
 
 - **`gopls`** — the Go language server. On **macOS** AutoVim deliberately keeps this outside Mason, because new `gopls` releases can briefly outrun Mason's registry / Go proxy cache. If Go is installed but `gopls` is not on `$PATH`, AutoVim shows a startup warning with the install command. Linux keeps using Mason-managed `gopls`.
-- **`lazysql`** — the TUI SQL client wired to `<C-q>`. The Neovim side is just a `snacks.terminal` toggle; the binary has to be on your `$PATH`.
+- **`lazysql`** — **optional, and no longer AutoVim's SQL surface** (autodb is). Only needed if you kept the deprecated `<C-q>` float in your `lua/custom/` layer; the binary then has to be on your `$PATH`.
 
 | Tool | Arch | macOS |
 |---|---|---|
 | `gopls` | managed by Mason | `go install golang.org/x/tools/gopls@latest` |
-| `lazysql` | `yay -S lazysql-bin` (AUR) | `go install github.com/jorgerojas26/lazysql@latest` |
+| `lazysql` *(optional)* | `yay -S lazysql-bin` (AUR) | `go install github.com/jorgerojas26/lazysql@latest` |
 
-Connection setup for `lazysql` lives in [SQL Without Leaving Neovim](#sql-without-leaving-neovim).
+autodb's setup — and what happened to `lazysql` and `nvim-dbee` — is in [SQL Without Leaving Neovim](#sql-without-leaving-neovim).
 
 ## Key Bindings Worth Knowing
 
@@ -390,11 +390,19 @@ Inside the panel:
 | `<leader>gw` | Pick a worktree under the root and `:cd` into it |
 | `<leader>gW` | Jump back to the original root directory |
 
-### SQL (lazysql)
+### SQL (autodb)
 
 | Binding | What It Does |
 |---|---|
-| `<C-q>` | Toggle the lazysql float (works in normal and terminal mode) |
+| `<leader>Dc` | Choose a connection |
+| `<leader>Dr` / `<leader>DR` | Run the SQL buffer / the visual selection |
+| `<leader>Dw` / `<leader>Dn` | Workspace / note picker |
+| `<leader>Dh` | Script history |
+| `<leader>Dl` | Sign in |
+| `<leader>DX` | Maintenance |
+
+`<C-q>` (the old lazysql float) is opt-in via `lua/custom/` — see
+[SQL Without Leaving Neovim](#sql-without-leaving-neovim).
 
 ### Playground terminals (T1..T4)
 
@@ -480,52 +488,43 @@ The picker uses `git worktree list --porcelain` under the hood, so both plain re
 
 ## SQL Without Leaving Neovim
 
-`<C-q>` drops [lazysql](https://github.com/jorgerojas26/lazysql) into a lazygit-style floating window. First press boots the picker with your configured connections; subsequent presses hide/show the float while the process keeps running in the background -- so reconnecting to prod is a one-time cost per nvim session.
+SQL is handled by [**autodb**](https://github.com/yongjohnlee80/autodb) — a Go
+backend I wrote to replace the two things that came before it. It is the only
+database surface in v0.4.0.
 
-**Requirements.** Install the binary on your system (pick your flavor: `yay -S lazysql-bin`, `go install github.com/jorgerojas26/lazysql@latest`, or grab a release from the repo). The nvim side is just a `snacks.terminal` toggle -- no plugin to install.
-
-**Connections.** Connections live in `~/.config/lazysql/config.toml`. One `[[database]]` block per entry; lazysql reads the file on launch. Keep the file `chmod 600` since the URL embeds credentials.
-
-```toml
-[[database]]
-Name = 'My Prod DB'
-Provider = 'postgres'
-DBName = 'myapp'
-URL = 'postgresql://user:pass@host:5432/myapp'
-ReadOnly = false
-
-[[database]]
-Name = 'Local'
-Provider = 'postgres'
-DBName = 'dev'
-URL = 'postgresql://root:secret@localhost:5432/dev?sslmode=disable'
-ReadOnly = false
-```
-
-Set `ReadOnly = true` on anything you'd rather not fat-finger a `DELETE` into. Supported providers include `postgres`, `mysql`, `sqlite3`, and a few others -- check the [lazysql repo](https://github.com/jorgerojas26/lazysql) for the full list.
-
-**In-app keys worth knowing.** `?` opens lazysql's own help panel, but these are the ones you'll actually use:
-
-| Key | What It Does |
+| Binding | What It Does |
 |---|---|
-| `H` / `L` | Focus sidebar / focus table |
-| `j` / `k` | Move down / up |
-| `/` | Filter / search |
-| `c` | Edit cell |
-| `o` | Insert new row |
-| `d` | Delete row |
-| `y` | Yank cell value |
-| `Ctrl+E` | Open the SQL editor |
-| `Ctrl+R` | Execute query |
-| `Ctrl+S` | Save pending changes |
-| `<` / `>` | Previous / next page |
-| `J` / `K` | Sort descending / ascending |
-| `z` / `Z` | Toggle JSON viewer for cell / row |
-| `E` | Export to CSV |
-| `?` | Help / full keybinding list |
-| `q` | Quit lazysql (kills the process -- prefer `<C-q>` to hide) |
+| `<leader>Dc` | Choose a connection |
+| `<leader>Dr` | Run the current SQL buffer (`<leader>DR` runs the visual selection) |
+| `<leader>Dw` | Choose / create a workspace (a group of connections) |
+| `<leader>Dn` | Choose / create a note |
+| `<leader>Dh` | Script history |
+| `<leader>Dl` | Sign in |
+| `<leader>DX` | Maintenance |
 
-Hitting `q` exits lazysql and drops the connection. Use `<C-q>` instead to tuck the float away while leaving the session alive.
+The auto-finder panel's **dbase section** hosts the explorer, so schemas sit in
+the same panel as your files and repos.
+
+**Why a homegrown backend.** autodb owns the parts that matter for touching a
+real database from an editor, in one place rather than spread across a UI
+plugin: connections encrypted at rest, users with `admin` / `editor` / `reader`
+roles, an audit trail of every executed script with the account and IP it came
+from, IP allowlisting, streaming results, and a guard that refuses an `UPDATE`
+or `DELETE` with no `WHERE` clause. It also runs standalone as a TUI, so the
+same tool works over SSH without Neovim.
+
+Connections, users and encryption are autodb's own; nothing lives in AutoVim's
+config, and there is no connection file to `chmod 600`. Sign in with
+`<leader>Dl` — first run prompts for a root passphrase.
+
+**Retired predecessors.** `lazysql` was the original `<C-q>` float; it had no
+native Neovim integration and its own keymap universe. `nvim-dbee` replaced it
+in v0.3.10 and was itself **fully removed in v0.4.0** — it was not stable
+enough to depend on, and the finder had to carry its own encrypted connection
+vault to compensate. Neither is installed any more. If you still want the old
+lazysql float, `update.sh` seeds a spec into your user-owned
+`lua/custom/plugins/lazysql.lua`; you own it from there, and the binary has to
+be on your `$PATH`.
 
 ## Navigation (`<C-g>`)
 
