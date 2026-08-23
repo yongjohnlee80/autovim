@@ -57,6 +57,35 @@ local DEFAULT_PROBES = {
     return out
   end,
 
+  -- Open editor buffers, most-recently-used first.
+  --
+  -- Filtered to real files: a listed, loaded, named buffer with an ordinary
+  -- buftype. That drops the panel, the agent slots, the playground terminals,
+  -- help, quickfix and the modal's own scratch buffer — none of which a
+  -- "jump to a buffer" list should offer, and several of which are reachable
+  -- through their own group already.
+  buffers = function()
+    local out = {}
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      local name = vim.api.nvim_buf_get_name(b)
+      if vim.bo[b].buflisted
+        and vim.api.nvim_buf_is_loaded(b)
+        and vim.bo[b].buftype == ""
+        and name ~= ""
+      then
+        out[#out + 1] = {
+          bufnr = b,
+          name = vim.fn.fnamemodify(name, ":~:."),
+          lastused = vim.fn.getbufinfo(b)[1] and vim.fn.getbufinfo(b)[1].lastused or 0,
+        }
+      end
+    end
+    table.sort(out, function(x, y)
+      return x.lastused > y.lastused
+    end)
+    return out
+  end,
+
   -- T1..T4 exist whenever auto-agents does; they are created on first toggle.
   terminals = function()
     local ok = pcall(require, "auto-agents.term")
@@ -119,17 +148,28 @@ function M.tree()
       },
     }
   elseif #agents > 0 then
-    -- Slot order, always. A modal whose rows move between sessions is
-    -- unusable: muscle memory for "2 is lector" has to survive a restart.
+    -- Slot order, with slot 0 LAST.
+    --
+    -- The row's key IS the slot number, so `0` reaches admin and `2` reaches
+    -- the agent in slot 2 — the same numbers the panel itself uses. v0.4.4
+    -- numbered rows sequentially AND printed the slot in the label, giving
+    -- every row two different numbers ("1.  0  admin"). Admin sits at the
+    -- bottom because 0 after 1..n is how both panels order their control
+    -- surface; leading with 0 would put the least-used row first.
     agents = vim.deepcopy(agents)
     table.sort(agents, function(x, y)
+      local xa, ya = x.slot == 0, y.slot == 0
+      if xa ~= ya then
+        return ya
+      end
       return x.slot < y.slot
     end)
     local children = {}
     for _, a in ipairs(agents) do
       children[#children + 1] = {
+        key = tostring(a.slot),
         id = "agents." .. a.label,
-        label = ("%d  %s"):format(a.slot, a.label),
+        label = a.label,
         action = { kind = "cmd", value = "AutoAgentsFocus " .. a.slot },
       }
     end
@@ -138,13 +178,38 @@ function M.tree()
 
   local sections = M.probe.finder_sections()
   if #sections > 0 then
-    local children = {}
+    -- auto-finder's registry is ZERO-based: `views/init.lua` assigns
+    -- `number = i - 1`, so the FIRST configured section is 0 — its control
+    -- surface, `config`, by the same "0 = control surface" convention
+    -- auto-agents uses for admin.
+    --
+    -- v0.4.x dispatched the 1-based `ipairs` index, so every row went to the
+    -- section BELOW the one it named and the last one was out of range. It
+    -- looked harmless only because `auto-finder.focus` CLAMPS an out-of-range
+    -- key to the default section instead of failing.
+    --
+    -- Dispatching by NAME rather than number removes the arithmetic entirely
+    -- (`focus()` accepts either) and survives someone reordering
+    -- `cfg.sections`. The number is still shown, because it is the key the
+    -- panel's own 0..9 keymap uses.
+    local rows = {}
     for i, name in ipairs(sections) do
+      rows[#rows + 1] = { number = i - 1, name = name }
+    end
+    table.sort(rows, function(x, y)
+      local xz, yz = x.number == 0, y.number == 0
+      if xz ~= yz then
+        return yz
+      end
+      return x.number < y.number
+    end)
+    local children = {}
+    for _, r in ipairs(rows) do
       children[#children + 1] = {
-        id = "finder." .. name,
-        label = ("%d  %s"):format(i, name),
-        -- AutoFinderFocus takes the section's 1-based panel index.
-        action = { kind = "cmd", value = "AutoFinderFocus " .. i },
+        key = tostring(r.number),
+        id = "finder." .. r.name,
+        label = r.name,
+        action = { kind = "cmd", value = "AutoFinderFocus " .. r.name },
       }
     end
     groups[#groups + 1] = { id = "finder", label = "finder", children = children }
@@ -155,12 +220,34 @@ function M.tree()
     local children = {}
     for _, n in ipairs(terms) do
       children[#children + 1] = {
+        key = tostring(n),
         id = "terminal.T" .. n,
         label = ("T%d"):format(n),
         action = { kind = "cmd", value = ("AutoAgentsTerm focus %d"):format(n) },
       }
     end
     groups[#groups + 1] = { id = "terminal", label = "terminal", children = children }
+  end
+
+  -- Buffers sit above views: reaching a file you already have open is a far
+  -- more frequent move than opening a log.
+  local bufs = M.probe.buffers()
+  if #bufs > 0 then
+    local children = {}
+    for i, b in ipairs(bufs) do
+      children[#children + 1] = {
+        -- Positional keys here, deliberately: a bufnr is not a stable, small
+        -- number a user could memorise, and MRU order is the useful one.
+        key = i <= 9 and tostring(i) or nil,
+        id = "buffers." .. b.name,
+        label = b.name,
+        action = { kind = "cmd", value = "buffer " .. b.bufnr },
+      }
+      if i >= 9 then
+        break
+      end
+    end
+    groups[#groups + 1] = { id = "buffers", label = "buffers", children = children }
   end
 
   -- Views: the odds and ends that used to hang off F11/F12.

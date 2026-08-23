@@ -54,7 +54,11 @@ local function build_rows(group_id)
       if g.id == group_id then
         for i, d in ipairs(g.children) do
           rows[#rows + 1] = {
-            key = i <= 9 and tostring(i) or nil,
+            -- The destination's OWN key when it has one (a panel slot number),
+            -- else the position. v0.4.4 always used the position AND printed
+            -- the slot inside the label, so every agent/finder row showed two
+            -- different numbers.
+            key = d.key or (i <= 9 and tostring(i) or nil),
             label = d.label,
             dest = d,
             bound = binds.key_for(d.id),
@@ -269,10 +273,26 @@ function M.open()
   -- Direct dispatch. A digit picks the Nth row of the CURRENT level; a letter
   -- resolves through the user's binds, from either level, so a shortcut works
   -- even while drilled into an unrelated group.
-  for d = 1, 9 do
-    map(tostring(d), function()
+  -- 0..9 select by the row's KEY, so a slot number reaches its own slot: `0`
+  -- is admin / the config section, not "the tenth row". Falls back to position
+  -- for groups whose rows carry no explicit key (views, browser).
+  for d = 0, 9 do
+    local digit = tostring(d)
+    map(digit, function()
       local st = M._state
-      activate(st and st.rows and st.rows[d])
+      if not st or not st.rows then
+        return
+      end
+      for _, r in ipairs(st.rows) do
+        if r.key == digit then
+          activate(r)
+          return
+        end
+      end
+      local n = tonumber(digit)
+      if n and n >= 1 then
+        activate(st.rows[n])
+      end
     end)
   end
   for c = string.byte("a"), string.byte("z") do

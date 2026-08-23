@@ -48,3 +48,19 @@ end, { nargs = 1, desc = "Remove a navigation-modal shortcut letter" })
 vim.keymap.set({ "n", "t" }, "<C-g>", function()
   require("utils.nav.ui").open()
 end, { desc = "Navigate (central modal)" })
+
+-- Insert mode too, so you can navigate away mid-typing without reaching for
+-- <Esc> first. `stopinsert` runs before the modal opens, otherwise the float
+-- inherits insert mode and the single-key dispatch types characters instead of
+-- selecting rows.
+--
+-- This DOES shadow Vim's insert-mode `<C-g>` prefix (`<C-g>u` to break the undo
+-- sequence, `<C-g>j`/`<C-g>k` to move between insert-start columns). Deliberate
+-- trade, on request: those are rarely typed by hand, and `<C-g>u` inside a
+-- mapping's RHS is unaffected — only interactive typing of the prefix is.
+vim.keymap.set("i", "<C-g>", function()
+  vim.cmd("stopinsert")
+  vim.schedule(function()
+    require("utils.nav.ui").open()
+  end)
+end, { desc = "Navigate (central modal)" })

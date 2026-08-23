@@ -51,8 +51,8 @@ REPO="${AUTOVIM_REPO:-https://github.com/yongjohnlee80/autovim.git}"
 # This script updates ITSELF. `detect_branch` and every other decision below is
 # evaluated by the copy already on disk, so a run can only ever fetch the new
 # update.sh — the new logic does not take effect until the NEXT invocation. That
-# is why upgrades historically needed two runs. `maybe_reexec_self` closes it:
-# once the overlay lands a different update.sh, we hand off to it.
+# is why upgrades historically needed two runs. `maybe_selfupdate` closes it:
+# it fetches the newest update.sh FIRST and hands off before any decision.
 SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 hash_of() {
   if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1
@@ -233,8 +233,12 @@ hard_reset_to_origin() {
   local local_branch
   local_branch="$(current_local_branch)"
 
-  log "Fetching origin/$target_branch"
-  git -C "$NVIM_CONFIG" fetch --quiet origin "$target_branch" \
+  # `--tags` so the checkout carries the version tags. Without them
+  # `git describe --tags` in ~/.config/nvim reported a description based on
+  # whatever old tag it happened to have (v0.3.25-…) even though the CONTENT
+  # was current — so "what version am I on?" answered wrong.
+  log "Fetching origin/$target_branch (with tags)"
+  git -C "$NVIM_CONFIG" fetch --quiet --tags origin "$target_branch" \
     || die "git fetch origin $target_branch failed in $NVIM_CONFIG"
 
   if [[ -n "$local_branch" && "$local_branch" != "$target_branch" ]]; then
@@ -281,29 +285,53 @@ overlay_tracked_tree() {
   rsync -a --exclude='.git/' "$tmpdir/autovim/" "$NVIM_CONFIG/"
 }
 
-# Hand off to the update.sh the overlay just installed, exactly once.
+# Fetch the newest update.sh and hand off to it BEFORE doing any work.
 #
-# Safe because `rsync -a` (no --inplace) writes a temp file and renames it, so
-# the bash executing this keeps its descriptor on the OLD inode and is never
-# reading a half-replaced file.
+# Every decision in this script — which branch to track, how to reset, what to
+# overlay — is made by the copy already on disk. Handing off only AFTER the
+# overlay (what v0.4.3 did) meant the OLD logic still chose the branch and did
+# the reset, and the new script only got to run the tail end. Migrating off a
+# retired branch therefore still needed a second invocation to be driven
+# entirely by current logic.
 #
-# The guard env var is what makes this terminate: the successor sees it set and
-# returns immediately, so at most one handoff happens per invocation no matter
-# how the two versions differ.
-maybe_reexec_self() {
+# So: fetch just this one file from origin first, compare, and exec it. The new
+# script then makes every decision, including the branch resolution.
+#
+# `git archive` is used rather than a clone: one file, no working tree, no
+# temp checkout. Falls through silently on any failure — a self-update that
+# cannot reach the network must not block an update that only needs the local
+# overlay.
+#
+# The guard env var is what terminates this: the successor sees it set and skips
+# the check, so at most one handoff happens per invocation.
+maybe_selfupdate() {
   if [[ -n "${AUTOVIM_UPDATE_REEXEC:-}" ]]; then
     return 0
   fi
-  local new="$NVIM_CONFIG/update.sh"
-  [[ -f "$new" ]] || return 0
   [[ "$SELF_HASH" != "unknown" && "$SELF_HASH" != "unhashable" ]] || return 0
+
+  local branch="$1" tmp
+  tmp="$(mktemp)" || return 0
+  # shellcheck disable=SC2064
+  trap "rm -f '$tmp'" RETURN
+
+  if ! git -C "$NVIM_CONFIG" fetch --quiet --depth=1 origin "$branch" 2>/dev/null; then
+    return 0
+  fi
+  if ! git -C "$NVIM_CONFIG" show "FETCH_HEAD:update.sh" > "$tmp" 2>/dev/null; then
+    return 0
+  fi
+  [[ -s "$tmp" ]] || return 0
+  bash -n "$tmp" 2>/dev/null || return 0        # never exec a broken script
+
   local new_hash
-  new_hash="$(hash_of "$new")"
+  new_hash="$(hash_of "$tmp")"
   [[ "$new_hash" != "$SELF_HASH" ]] || return 0
 
-  log "update.sh changed in this update — continuing with the new version"
-  log "  (this is what used to require a second run)"
-  AUTOVIM_UPDATE_REEXEC=1 exec bash "$new" "$@"
+  log "A newer update.sh is available — running that one instead"
+  log "  (so the new logic drives the whole update, not just the tail)"
+  install -m 0755 "$tmp" "$NVIM_CONFIG/update.sh" 2>/dev/null || return 0
+  AUTOVIM_UPDATE_REEXEC=1 exec bash "$NVIM_CONFIG/update.sh" "$@"
 }
 
 install_autovim_cli() {
@@ -399,15 +427,14 @@ main() {
     die "No AutoVim install found at $NVIM_CONFIG — run install.sh first."
   fi
 
+  # Before anything else: if origin has a newer update.sh, run THAT one.
+  maybe_selfupdate "$branch" "$@"
+
   # Capture pre-overlay markers BEFORE rsync replaces the tracked tree.
   detect_pre_upgrade_lazysql
 
   hard_reset_to_origin "$branch"
   overlay_tracked_tree "$branch"
-  # From here on the tracked tree is the NEW version's. If that includes a new
-  # update.sh, let it finish the job rather than running the rest with stale
-  # logic.
-  maybe_reexec_self "$@"
   scaffold_custom_if_missing
   migrate_lazysql_to_custom
   install_autovim_cli

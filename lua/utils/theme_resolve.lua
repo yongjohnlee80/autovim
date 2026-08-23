@@ -29,6 +29,11 @@ local M = {}
 -- Requirement 5: every non-Omarchy platform defaults here.
 M.FALLBACK = "catppuccin-mocha"
 
+-- The transparent pseudo-theme in `colors/system.lua`. Named here because on
+-- Omarchy it is treated as "follow the system", not as a colorscheme choice —
+-- see `decide`.
+M.SYSTEM = "system"
+
 --- Decide the colorscheme.
 --- @param s table
 ---   cached              string|nil  AutoVim's persisted colorscheme pick
@@ -45,6 +50,25 @@ function M.decide(s)
       return s.cached, "autovim-cache"
     end
     return M.FALLBACK, "default"
+  end
+
+  -- `system` is not an override ON OMARCHY — it is a request to stop
+  -- overriding.
+  --
+  -- The word means two different things in two places, and that collision is a
+  -- real reported bug. In AutoVim's picker, `system` is the pseudo-theme in
+  -- `colors/system.lua`: hi clear, terminal palette, transparent background. On
+  -- an Omarchy desktop, "system theme" means the theme Omarchy is running. So a
+  -- user who picks a theme, dislikes it, and reaches for `system` to get back
+  -- to "whatever the system says" instead pinned themselves to the flat
+  -- transparent look — and read that, reasonably, as Omarchy theming being
+  -- broken.
+  --
+  -- Off Omarchy there is no competing meaning and `system` stays a normal,
+  -- selectable colorscheme. Handled before the stamp check so it applies
+  -- whether or not the saved pick carries one.
+  if s.cached == M.SYSTEM and s.omarchy_colorscheme then
+    return s.omarchy_colorscheme, "omarchy-system"
   end
 
   -- An unstamped cache is ambiguous: it predates this mechanism, so we cannot

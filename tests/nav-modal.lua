@@ -51,6 +51,8 @@ local function stub_full()
              { slot = 1, label = "jarvis" } }
   end
   registry.probe.finder_sections = function()
+    -- Declaration order, i.e. what `cfg.sections` holds: config FIRST, because
+    -- it is section 0. The registry is what reorders it for display.
     return { "config", "files", "repos" }
   end
   registry.probe.terminals = function()
@@ -74,24 +76,68 @@ ok("all five groups appear in a fully-populated environment",
 local by_group = {}
 for _, g in ipairs(tree) do by_group[g.id] = g end
 
-ok("agents are sorted by slot, not declaration order",
-  by_group.agents.children[1].label:find("admin", 1, true) ~= nil,
-  by_group.agents.children[1].label)
-ok("*** slot 0 (the admin REPL) is listed *** — it was omitted in v0.4.0",
-  by_group.agents.children[1].label:match("^0%s") ~= nil,
-  by_group.agents.children[1].label)
+-- Slot 0 sits LAST but keeps the key `0`: one number per row, and it is the
+-- panel's own number. v0.4.4 numbered rows sequentially AND printed the slot in
+-- the label, so every row carried two different numbers ("1.  0  admin").
+local function agent_row(label)
+  for _, d in ipairs(by_group.agents.children) do
+    if d.label == label then return d end
+  end
+end
+ok("agents are ordered by slot, with 0 LAST",
+  by_group.agents.children[1].label == "jarvis"
+  and by_group.agents.children[#by_group.agents.children].label == "admin",
+  by_group.agents.children[1].label .. " … " ..
+  by_group.agents.children[#by_group.agents.children].label)
+ok("*** slot 0 (the admin REPL) is present and keyed `0` ***",
+  agent_row("admin") ~= nil and agent_row("admin").key == "0",
+  agent_row("admin") and tostring(agent_row("admin").key))
 ok("an agent dispatches AutoAgentsFocus with its slot",
-  by_group.agents.children[3].action.value == "AutoAgentsFocus 5",
-  by_group.agents.children[3].action.value)
+  agent_row("ultron-prime").action.value == "AutoAgentsFocus 5",
+  agent_row("ultron-prime").action.value)
+ok("its key IS that slot, so `5` reaches slot 5",
+  agent_row("ultron-prime").key == "5", tostring(agent_row("ultron-prime").key))
 ok("agent rows are labelled by name, not title",
-  by_group.agents.children[2].label:find("jarvis", 1, true) ~= nil,
-  by_group.agents.children[2].label)
+  agent_row("jarvis") ~= nil and agent_row("jarvis").key == "1")
+ok("*** no row embeds its number in the label (the double-numbering bug) ***",
+  (function()
+    for _, d in ipairs(by_group.agents.children) do
+      if d.label:match("^%d") then return false end
+    end
+    return true
+  end)(), vim.inspect(vim.tbl_map(function(d) return d.label end, by_group.agents.children)))
 
-ok("a finder section dispatches its 1-based PANEL INDEX, not its name",
-  by_group.finder.children[3].action.value == "AutoFinderFocus 3",
-  by_group.finder.children[3].action.value)
+-- auto-finder's registry is ZERO-based (`views/init.lua`: `number = i - 1`), so
+-- the first configured section is 0 — `config`, its control surface. v0.4.x
+-- dispatched the 1-based ipairs index, sending every row to the section BELOW
+-- the one it named and putting the last one out of range. It went unnoticed
+-- because `auto-finder.focus` CLAMPS an out-of-range key to the default
+-- section rather than failing.
+local function finder_row(label)
+  for _, d in ipairs(by_group.finder.children) do
+    if d.label == label then return d end
+  end
+end
+ok("*** a finder section dispatches BY NAME, never a bare index ***",
+  finder_row("files").action.value == "AutoFinderFocus files",
+  finder_row("files").action.value)
+ok("no finder row dispatches a numeric argument",
+  (function()
+    for _, d in ipairs(by_group.finder.children) do
+      if d.action.value:match("AutoFinderFocus%s+%d") then return false end
+    end
+    return true
+  end)(), vim.inspect(vim.tbl_map(function(d) return d.action.value end, by_group.finder.children)))
+ok("finder numbering is 0-based: config is 0",
+  finder_row("config").key == "0", tostring(finder_row("config").key))
+ok("and files/repos are 1 and 2",
+  finder_row("files").key == "1" and finder_row("repos").key == "2",
+  finder_row("files").key .. "/" .. finder_row("repos").key)
+ok("config is listed LAST, like admin",
+  by_group.finder.children[#by_group.finder.children].label == "config",
+  by_group.finder.children[#by_group.finder.children].label)
 ok("finder ids are stable names, so a bind survives reordering",
-  by_group.finder.children[3].id == "finder.repos", by_group.finder.children[3].id)
+  finder_row("repos").id == "finder.repos", finder_row("repos").id)
 
 ok("terminals dispatch AutoAgentsTerm focus N",
   by_group.terminal.children[4].action.value == "AutoAgentsTerm focus 4",
@@ -113,6 +159,39 @@ do
   -- there, in the comment explaining why they were removed. A source match
   -- cannot distinguish code from prose, and the two assertions above test the
   -- actual tree, which is what matters.
+end
+
+io.stdout:write("\n[1b] buffers sit ABOVE views\n")
+registry.probe.buffers = function()
+  return {
+    { bufnr = 7, name = "lua/init.lua", lastused = 200 },
+    { bufnr = 9, name = "README.md", lastused = 100 },
+  }
+end
+do
+  local ids = vim.tbl_map(function(g) return g.id end, registry.tree())
+  local ib, iv
+  for i, id in ipairs(ids) do
+    if id == "buffers" then ib = i end
+    if id == "views" then iv = i end
+  end
+  ok("a buffers group appears", ib ~= nil, table.concat(ids, ","))
+  ok("*** and it is ABOVE views ***", ib and iv and ib < iv,
+    table.concat(ids, ","))
+  local bg
+  for _, g in ipairs(registry.tree()) do if g.id == "buffers" then bg = g end end
+  ok("buffers dispatch :buffer <bufnr>", bg.children[1].action.value == "buffer 7",
+    bg.children[1].action.value)
+  ok("most-recently-used first", bg.children[1].label == "lua/init.lua",
+    bg.children[1].label)
+  ok("buffer keys are positional (a bufnr is not memorable)",
+    bg.children[1].key == "1" and bg.children[2].key == "2")
+end
+registry.probe.buffers = function() return {} end
+do
+  local ids = vim.tbl_map(function(g) return g.id end, registry.tree())
+  ok("no open buffers -> no buffers group", not vim.tbl_contains(ids, "buffers"),
+    table.concat(ids, ","))
 end
 
 io.stdout:write("\n[2] the browser offers exactly one option: a tmux split pane\n")
@@ -300,7 +379,7 @@ vim.fn.delete(scratch)
 
 -- Floor: sections [3]/[4] and the bind loops are the ones that could quietly
 -- stop contributing. Count taken before this check, so it excludes itself.
-local MIN_ASSERTIONS = 59
+local MIN_ASSERTIONS = 71
 do
   local ran = pass_count + fail_count
   ok(("assertion floor: ran %d, expected at least %d"):format(ran, MIN_ASSERTIONS),
