@@ -12,6 +12,8 @@ The installer detects your OS (macOS, Arch, Debian / Ubuntu, Fedora), installs b
 
 **One branch, every platform.** AutoVim used to ship a branch per environment (`main`, `mac-os`, `omarchy`) and install whichever matched. All of that now lives on `main` and is selected at runtime by [`lua/utils/platform.lua`](lua/utils/platform.lua), so macOS still gets its Mason-free `gopls` and Omarchy boxes still follow the system theme — from the same commit everyone else runs. OS detection in `install.sh` survives only to pick the right *system packages*, which genuinely differ per distro. See [Platform Behaviour](#platform-behaviour).
 
+The old `mac-os` and `omarchy` branches are **frozen at `v0.3.29`** rather than deleted, so existing checkouts keep working. They receive nothing from `v0.4.0` onward. Running `update.sh` on one of them migrates it to `main` and tells you it is doing so.
+
 Override the defaults with env vars:
 
 ```bash
