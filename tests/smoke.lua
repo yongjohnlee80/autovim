@@ -27,6 +27,16 @@ local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
 -- config's own modules (`plugins/theme.lua` requires `utils.platform`). Make
 -- the config's lua/ resolvable before anything runs, or section [1] fails for
 -- a reason that has nothing to do with the spec being malformed.
+-- Force module resolution to THIS checkout.
+--
+-- `package.path` alone is not enough: Neovim's own loader searches
+-- `runtimepath` BEFORE package.path, and `~/.config/nvim` is on the rtp by
+-- default. Once an AutoVim release is actually installed there, every
+-- `require("utils.…")` in this suite silently resolves to the INSTALLED copy
+-- and the tests validate the wrong tree — which is exactly what happened the
+-- first time v0.4.3 was deployed to this machine. Prepending the checkout puts
+-- it ahead of the installed config in the rtp loader's search order.
+vim.opt.runtimepath:prepend(root)
 package.path = root .. "/lua/?.lua;" .. root .. "/lua/?/init.lua;" .. package.path
 
 local pass_count, fail_count = 0, 0

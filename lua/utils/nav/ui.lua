@@ -157,12 +157,27 @@ local function activate(row)
   end
   local dest = row.dest
   close()
-  if dest then
+  if not dest then
+    return
+  end
+
+  -- Dispatch on the NEXT tick, not inline after `close()`.
+  --
+  -- Closing this float moves focus to a non-float window, which fires WinEnter,
+  -- and `auto-agents.term.focus` answers that by queueing `vim.schedule(hide_all)`
+  -- to hide every T1..T4 float. Dispatching inline therefore opened the terminal
+  -- BEFORE that queued hide ran, and the hide then closed it again — the
+  -- "terminal flashes open then disappears" bug.
+  --
+  -- `vim.schedule` is FIFO, so deferring puts us behind the already-queued
+  -- hide: it drains first (hiding nothing, since nothing is open yet), then we
+  -- open. Harmless for the non-float destinations, which the auto-hide ignores.
+  vim.schedule(function()
     local ok, err = registry.dispatch(dest)
     if not ok then
       vim.notify(("navigate: %s failed — %s"):format(dest.id, tostring(err)), vim.log.levels.ERROR)
     end
-  end
+  end)
 end
 
 local function current_row()

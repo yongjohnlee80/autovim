@@ -10,6 +10,16 @@
 -- behaviour — without auto-agents, auto-finder or auto-core present.
 
 local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
+-- Force module resolution to THIS checkout.
+--
+-- `package.path` alone is not enough: Neovim's own loader searches
+-- `runtimepath` BEFORE package.path, and `~/.config/nvim` is on the rtp by
+-- default. Once an AutoVim release is actually installed there, every
+-- `require("utils.…")` in this suite silently resolves to the INSTALLED copy
+-- and the tests validate the wrong tree — which is exactly what happened the
+-- first time v0.4.3 was deployed to this machine. Prepending the checkout puts
+-- it ahead of the installed config in the rtp loader's search order.
+vim.opt.runtimepath:prepend(root)
 package.path = root .. "/lua/?.lua;" .. root .. "/lua/?/init.lua;" .. package.path
 
 local pass_count, fail_count = 0, 0
@@ -35,8 +45,10 @@ binds._path_override = scratch
 -- A fully-populated fake environment, so the tree has every group.
 local function stub_full()
   registry.probe.agents = function()
-    -- Deliberately out of slot order: the registry must sort.
-    return { { slot = 5, name = "ultron-prime" }, { slot = 1, name = "james-cook" } }
+    -- Deliberately out of slot order: the registry must sort. Shape is the
+    -- roster's ({ slot, label }), including slot 0 for the admin REPL.
+    return { { slot = 5, label = "ultron-prime" }, { slot = 0, label = "admin" },
+             { slot = 1, label = "jarvis" } }
   end
   registry.probe.finder_sections = function()
     return { "config", "files", "repos" }
@@ -63,11 +75,17 @@ local by_group = {}
 for _, g in ipairs(tree) do by_group[g.id] = g end
 
 ok("agents are sorted by slot, not declaration order",
-  by_group.agents.children[1].label:find("james-cook", 1, true) ~= nil,
+  by_group.agents.children[1].label:find("admin", 1, true) ~= nil,
+  by_group.agents.children[1].label)
+ok("*** slot 0 (the admin REPL) is listed *** — it was omitted in v0.4.0",
+  by_group.agents.children[1].label:match("^0%s") ~= nil,
   by_group.agents.children[1].label)
 ok("an agent dispatches AutoAgentsFocus with its slot",
-  by_group.agents.children[2].action.value == "AutoAgentsFocus 5",
-  by_group.agents.children[2].action.value)
+  by_group.agents.children[3].action.value == "AutoAgentsFocus 5",
+  by_group.agents.children[3].action.value)
+ok("agent rows are labelled by name, not title",
+  by_group.agents.children[2].label:find("jarvis", 1, true) ~= nil,
+  by_group.agents.children[2].label)
 
 ok("a finder section dispatches its 1-based PANEL INDEX, not its name",
   by_group.finder.children[3].action.value == "AutoFinderFocus 3",
@@ -81,6 +99,21 @@ ok("terminals dispatch AutoAgentsTerm focus N",
 
 ok("only views whose command EXISTS are offered", #by_group.views.children == 2,
   vim.inspect(vim.tbl_map(function(d) return d.id end, by_group.views.children)))
+-- v0.4.3 offered `AutoAgentsStatus` (a two-arg SETTER agents call to report
+-- their own state — it hit its usage-error path when invoked bare) and
+-- `AutoAgentsDock` (which duplicated this modal). Neither may come back.
+do
+  local ids = {}
+  for _, d in ipairs(by_group.views.children) do ids[d.id] = true end
+  ok("*** views never offers AutoAgentsStatus (a 2-arg setter, not a view) ***",
+    ids["views.agent-status"] == nil)
+  ok("*** views never offers the agents dock (superseded by this modal) ***",
+    ids["views.dock"] == nil)
+  -- Deliberately NOT asserted by grepping the source: both names still appear
+  -- there, in the comment explaining why they were removed. A source match
+  -- cannot distinguish code from prose, and the two assertions above test the
+  -- actual tree, which is what matters.
+end
 
 io.stdout:write("\n[2] the browser offers exactly one option: a tmux split pane\n")
 ok("browser group has a single destination", #by_group.browser.children == 1)
@@ -123,7 +156,7 @@ ok("no auto-agents at all -> no agents group",
   table.concat(vim.tbl_map(function(g) return g.id end, t3c), ","))
 
 -- A real roster must WIN over the fallback, not sit alongside it.
-registry.probe.agents = function() return { { slot = 2, name = "reed-richards" } } end
+registry.probe.agents = function() return { { slot = 2, label = "reed-richards" } } end
 registry.probe.has_command = function(name) return name == "AutoAgents" end
 local t3d = registry.tree()
 for _, g in ipairs(t3d) do if g.id == "agents" then ag = g end end
@@ -267,7 +300,7 @@ vim.fn.delete(scratch)
 
 -- Floor: sections [3]/[4] and the bind loops are the ones that could quietly
 -- stop contributing. Count taken before this check, so it excludes itself.
-local MIN_ASSERTIONS = 54
+local MIN_ASSERTIONS = 59
 do
   local ran = pass_count + fail_count
   ok(("assertion floor: ran %d, expected at least %d"):format(ran, MIN_ASSERTIONS),

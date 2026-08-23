@@ -25,26 +25,16 @@ local M = {}
 -- list and MUST NOT raise: a broken or half-loaded plugin should cost you that
 -- one group, not the whole modal.
 local DEFAULT_PROBES = {
-  -- `{ { slot = 5, name = "ultron-prime" }, ... }`, ordered by slot.
+  -- Every panel slot with a display label: slot 0 is the admin REPL, then one
+  -- row per agent. Resolution (live config, else the project TOML) and the
+  -- reason it is not read from `state.config.agents` live in `nav.roster`.
   agents = function()
-    local ok, aa = pcall(require, "auto-agents")
-    if not ok or type(aa) ~= "table" then
+    local ok, roster = pcall(require, "utils.nav.roster")
+    if not ok then
       return {}
     end
-    local cfg = (aa.state or {}).config
-    local agents = cfg and cfg.agents or nil
-    if type(agents) ~= "table" then
-      return {}
-    end
-    local out = {}
-    for _, a in ipairs(agents) do
-      if type(a) == "table" and tonumber(a.slot) then
-        out[#out + 1] = { slot = tonumber(a.slot), name = a.name or ("slot " .. a.slot) }
-      end
-    end
-    -- Ordering is deliberately NOT done here. `tree()` owns presentation order
-    -- so the guarantee holds for any probe, not just this one.
-    return out
+    local okc, slots = pcall(roster.slots)
+    return okc and slots or {}
   end,
 
   -- Section NAMES in panel order; the index is what `AutoFinderFocus` takes.
@@ -113,12 +103,9 @@ function M.tree()
 
   local agents = M.probe.agents()
   if #agents == 0 and M.probe.has_command("AutoAgents") then
-    -- auto-agents is installed but its roster is not readable yet: the plugin
-    -- lazy-loads, and `state.config` stays nil until its setup runs. Dropping
-    -- the group here would mean the modal cannot reach agents until you have
-    -- already opened the agents panel some other way — which defeats the point
-    -- of replacing F5. Offer one entry that opens the panel; the next time the
-    -- modal is opened the real roster is there.
+    -- auto-agents is installed but the roster could not be read at all (no
+    -- config file yet, e.g. a fresh install before the wizard has run). One
+    -- entry that opens the panel is better than an empty group.
     groups[#groups + 1] = {
       id = "agents",
       label = "agents",
@@ -126,16 +113,14 @@ function M.tree()
         {
           id = "agents.panel",
           label = "open agents panel",
-          detail = "roster appears here once auto-agents has loaded",
+          detail = "no roster configured yet",
           action = { kind = "cmd", value = "AutoAgents" },
         },
       },
     }
   elseif #agents > 0 then
-    -- Slot order, always. The TOML roster is written in whatever order agents
-    -- were added, and a modal whose rows move between sessions is unusable —
-    -- muscle memory for "2 is the second agent" has to survive a restart.
-    -- Sorting a copy keeps the probe's return value untouched.
+    -- Slot order, always. A modal whose rows move between sessions is
+    -- unusable: muscle memory for "2 is lector" has to survive a restart.
     agents = vim.deepcopy(agents)
     table.sort(agents, function(x, y)
       return x.slot < y.slot
@@ -143,8 +128,8 @@ function M.tree()
     local children = {}
     for _, a in ipairs(agents) do
       children[#children + 1] = {
-        id = "agents." .. a.name,
-        label = ("%d  %s"):format(a.slot, a.name),
+        id = "agents." .. a.label,
+        label = ("%d  %s"):format(a.slot, a.label),
         action = { kind = "cmd", value = "AutoAgentsFocus " .. a.slot },
       }
     end
@@ -180,10 +165,18 @@ function M.tree()
 
   -- Views: the odds and ends that used to hang off F11/F12.
   local views = {}
+  -- Only NO-ARGUMENT, user-facing views belong here. v0.4.0 built this list by
+  -- probing for commands whose names looked view-ish, which put two wrong
+  -- entries in it:
+  --   * `AutoAgentsStatus` is a two-argument SETTER
+  --     (`<slot|name> <idle|waiting|working>`) that agents call to report their
+  --     own state. Invoked bare from the modal it hit its usage-error path.
+  --   * `AutoAgentsDock` duplicated this modal; removed by Johno's call now
+  --     that every slot is individually reachable under `agents`.
+  -- Before adding a command here, read its definition and check it takes no
+  -- required arguments and shows the user something.
   local candidates = {
     { cmd = "AutoAgentsDiffQueue", id = "views.diff-queue", label = "diff queue" },
-    { cmd = "AutoAgentsDock", id = "views.dock", label = "agents dock" },
-    { cmd = "AutoAgentsStatus", id = "views.agent-status", label = "agent status" },
     { cmd = "AutoCoreLog", id = "views.core-log", label = "auto-core log" },
   }
   for _, c in ipairs(candidates) do
