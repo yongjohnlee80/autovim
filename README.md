@@ -321,13 +321,15 @@ A typical session opens `:AutoAgents` (or `<F5>`) and lands on the admin slot. F
 
 ## Dependencies
 
-One external binary this config relies on that doesn't install itself through Lazy or Mason:
+`install.sh` installs these as baseline system packages. The rest of this section is what to do if you skipped it (`AUTOVIM_SKIP_DEPS=1`) or are on an unsupported platform:
 
+- **A Go toolchain** — **required**, and installed by `install.sh` on every supported platform. autodb (the database backend, and AutoVim's only SQL surface since v0.4.0) compiles its daemon through a lazy `build` hook that runs `make build`; without `go` on `$PATH` that hook fails and `<leader>D*` reports "no autodb executable found". The Go LSP/debug tooling assumes a toolchain too.
 - **`gopls`** — the Go language server. On **macOS** AutoVim deliberately keeps this outside Mason, because new `gopls` releases can briefly outrun Mason's registry / Go proxy cache. If Go is installed but `gopls` is not on `$PATH`, AutoVim shows a startup warning with the install command. Linux keeps using Mason-managed `gopls`.
 - **`lazysql`** — **optional, and no longer AutoVim's SQL surface** (autodb is). Only needed if you kept the deprecated `<C-q>` float in your `lua/custom/` layer; the binary then has to be on your `$PATH`.
 
 | Tool | Arch | macOS |
 |---|---|---|
+| `go` | `pacman -S go` | `brew install go` |
 | `gopls` | managed by Mason | `go install golang.org/x/tools/gopls@latest` |
 | `lazysql` *(optional)* | `yay -S lazysql-bin` (AUR) | `go install github.com/jorgerojas26/lazysql@latest` |
 

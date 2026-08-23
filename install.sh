@@ -19,6 +19,10 @@
 #   AUTOVIM_BRANCH=<name>    track a non-default branch (forks / testing)
 #   AUTOVIM_REPO=<url>       fork URL (default: upstream)
 #   AUTOVIM_SKIP_DEPS=1      skip system-package install (you handle deps manually)
+#
+# Go is a baseline dependency: autodb — the database backend, and AutoVim's
+# only SQL surface since v0.4.0 — compiles its daemon through a lazy `build`
+# hook, and the Go LSP/debug tooling assumes a toolchain is present.
 
 set -euo pipefail
 
@@ -72,20 +76,25 @@ install_deps() {
       # rsync: required by update.sh's overlay step (macOS ships an older
       # bundled rsync, but brew's is preferred and matches Linux behavior).
       # pandoc: required by md-harpoon's `<leader>mb` browser-render path.
-      brew install neovim ripgrep fd fzf git tmux rsync pandoc
+      # go: autodb's `build = "make build"` hook compiles its daemon, and
+      # AutoVim is a Go-first distro (gopls / delve / goimports).
+      brew install neovim ripgrep fd fzf git tmux rsync pandoc go
       ;;
 
     arch)
       # rsync + pandoc — see brew block above for rationale. WSL users hit
       # this branch too if /etc/os-release reports `arch`-family.
-      sudo pacman -Syu --needed --noconfirm neovim ripgrep fd fzf git gcc curl tmux rsync pandoc
+      # go — see the brew block above.
+      sudo pacman -Syu --needed --noconfirm neovim ripgrep fd fzf git gcc curl tmux rsync pandoc go
       ;;
 
     debian)
       sudo apt update
       # rsync + pandoc — see brew block above for rationale. WSL Ubuntu /
       # Debian users hit this branch via uname -s == Linux.
-      sudo apt install -y ripgrep fd-find fzf git build-essential curl tmux rsync pandoc
+      # golang-go — see the brew block above. Debian's may lag; if autodb's build
+      # hook complains about the Go version, install a newer toolchain.
+      sudo apt install -y ripgrep fd-find fzf git build-essential curl tmux rsync pandoc golang-go
 
       # apt's nvim is almost always too old for LazyVim (<0.10). Use snap.
       local need_nvim=1
@@ -117,11 +126,12 @@ install_deps() {
 
     fedora)
       # rsync + pandoc — see brew block above for rationale.
-      sudo dnf install -y neovim ripgrep fd-find fzf git gcc curl tmux rsync pandoc
+      # golang — see the brew block above.
+      sudo dnf install -y neovim ripgrep fd-find fzf git gcc curl tmux rsync pandoc golang
       ;;
 
     *)
-      die "Automatic dep install isn't supported on this system. Install neovim (≥0.10), ripgrep, fd, fzf, git, gcc, curl, tmux, rsync, pandoc manually, then re-run with AUTOVIM_SKIP_DEPS=1."
+      die "Automatic dep install isn't supported on this system. Install neovim (≥0.10), ripgrep, fd, fzf, git, gcc, curl, tmux, rsync, pandoc, go manually, then re-run with AUTOVIM_SKIP_DEPS=1."
       ;;
   esac
 
