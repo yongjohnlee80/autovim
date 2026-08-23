@@ -238,8 +238,17 @@ hard_reset_to_origin() {
   # whatever old tag it happened to have (v0.3.25-…) even though the CONTENT
   # was current — so "what version am I on?" answered wrong.
   log "Fetching origin/$target_branch (with tags)"
-  git -C "$NVIM_CONFIG" fetch --quiet --tags origin "$target_branch" \
-    || die "git fetch origin $target_branch failed in $NVIM_CONFIG"
+  local fetch_err
+  if ! fetch_err="$(git -C "$NVIM_CONFIG" fetch --tags origin "$target_branch" 2>&1)"; then
+    # Report git's OWN message. The previous `|| die "git fetch … failed"`
+    # discarded stderr, so a real report of this failure arrived with no reason
+    # in it and had to be diagnosed by guesswork.
+    warn "git fetch origin $target_branch failed in $NVIM_CONFIG:"
+    printf '%s\n' "$fetch_err" | sed 's/^/    /' >&2
+    warn "Common causes: no SSH key for $(git -C "$NVIM_CONFIG" remote get-url origin 2>/dev/null)," 
+    warn "  no network, or a shallow checkout (see --unshallow above)."
+    die "cannot continue without fetching origin/$target_branch"
+  fi
 
   if [[ -n "$local_branch" && "$local_branch" != "$target_branch" ]]; then
     if is_legacy_branch "$local_branch"; then
@@ -304,6 +313,25 @@ overlay_tracked_tree() {
 #
 # The guard env var is what terminates this: the successor sees it set and skips
 # the check, so at most one handoff happens per invocation.
+# Repair a clone that v0.4.5/v0.4.6's `--depth=1` self-update turned shallow.
+#
+# Those versions fetched with `--depth=1`, which writes `.git/shallow` and
+# truncates history. Anything inheriting that state keeps failing until it is
+# undone, and the user cannot be expected to know that is what happened — so
+# undo it here, before the fetch that would otherwise fail.
+unshallow_if_needed() {
+  [[ -d "$NVIM_CONFIG/.git" ]] || return 0
+  [[ "$(git -C "$NVIM_CONFIG" rev-parse --is-shallow-repository 2>/dev/null)" == "true" ]] || return 0
+  warn "This checkout is SHALLOW — an earlier AutoVim self-update (v0.4.5/v0.4.6)"
+  warn "  fetched with --depth=1, which truncates history. Restoring full history."
+  if git -C "$NVIM_CONFIG" fetch --quiet --unshallow origin 2>/dev/null; then
+    log "History restored."
+  else
+    warn "Could not unshallow automatically. Run this by hand, then re-run update.sh:"
+    warn "    git -C \"$NVIM_CONFIG\" fetch --unshallow origin"
+  fi
+}
+
 maybe_selfupdate() {
   if [[ -n "${AUTOVIM_UPDATE_REEXEC:-}" ]]; then
     return 0
@@ -315,7 +343,15 @@ maybe_selfupdate() {
   # shellcheck disable=SC2064
   trap "rm -f '$tmp'" RETURN
 
-  if ! git -C "$NVIM_CONFIG" fetch --quiet --depth=1 origin "$branch" 2>/dev/null; then
+  # NO --depth=1 here. It looked like a harmless optimisation for fetching one
+  # file, but `git fetch --depth=1` CONVERTS A FULL CLONE INTO A SHALLOW ONE
+  # (it writes .git/shallow). On a machine whose objects were all present it is
+  # a no-op, which is why it passed here; on a machine that is behind it really
+  # does truncate history, and a shallow clone then fails later operations
+  # against a real remote. Shipped in v0.4.5 and reported from a second Omarchy
+  # box as "git fetch origin main failed". A plain fetch costs a little more
+  # traffic and cannot damage the checkout.
+  if ! git -C "$NVIM_CONFIG" fetch --quiet origin "$branch" 2>/dev/null; then
     return 0
   fi
   if ! git -C "$NVIM_CONFIG" show "FETCH_HEAD:update.sh" > "$tmp" 2>/dev/null; then
@@ -428,6 +464,7 @@ main() {
   fi
 
   # Before anything else: if origin has a newer update.sh, run THAT one.
+  unshallow_if_needed
   maybe_selfupdate "$branch" "$@"
 
   # Capture pre-overlay markers BEFORE rsync replaces the tracked tree.
