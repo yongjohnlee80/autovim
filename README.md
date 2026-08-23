@@ -1,6 +1,6 @@
 # AutoVim
 
-An opinionated Neovim config built around AI pair programming (Claude Code + Codex), purpose-built for TypeScript and Go, with Omarchy / macOS / Ubuntu / Fedora variants maintained out of one repo.
+An opinionated Neovim config built around AI pair programming (Claude Code + Codex), purpose-built for TypeScript and Go, with Omarchy / macOS / Ubuntu / Fedora all served from one branch.
 
 ## Installation
 
@@ -342,6 +342,7 @@ Connection setup for `lazysql` lives in [SQL Without Leaving Neovim](#sql-withou
 | `jk` | Escape insert mode (the only correct mapping) |
 | `<F5>` | Toggle the auto-agents panel (last-focused slot) |
 | `<F6>` / `<F12>` | Open the navigation dock (one-key slot dispatch) |
+| `<C-g>` | **Central navigation modal** — agents / finder / terminals / views / browser, with user-assignable letters. Works in normal *and* terminal mode. See [Navigation](#navigation-c-g) |
 | `<leader>ac` | Toggle the panel |
 | `<leader>am` / `<leader>ai` / `<leader>ap` | Bootstrap-refresh a slot: re-ingest doc / re-assert identity / bootstrap mailbox permissions (PERMISSION.md, ADR-0036). Project commands: `:AutoAgentsProject`. |
 | `<leader>a0` | Focus admin (slot 0) — the REPL where wizards live |
@@ -526,7 +527,54 @@ Set `ReadOnly = true` on anything you'd rather not fat-finger a `DELETE` into. S
 
 Hitting `q` exits lazysql and drops the connection. Use `<C-q>` instead to tuck the float away while leaving the session alive.
 
+## Navigation (`<C-g>`)
+
+`<C-g>` opens a centred modal that reaches everything in the config. It is the
+**primary** navigation surface as of v0.4 — the F-keys below still work, but they
+are no longer the only route. F-keys are unreliable across terminal emulators,
+tmux and SSH; `<C-g>` is not.
+
+```
+ 1.  agents    (6)      <CR> go
+ 2.  finder    (3)      *    bind a letter to the highlighted destination
+ 3.  terminal  (4)      h    back up a level
+ 4.  views     (4)      q    close
+ 5.  browser   (1)
+ d.  3  dbase          <- a destination you bound to `d`
+```
+
+Groups are **discovered, not hard-coded**, so the modal shows what your machine
+actually has: your configured agent slots by name, whichever auto-finder
+sections you enabled, the four playground terminals, the diff queue / dock /
+logs, and the browser. A group with nothing in it is omitted rather than shown
+empty.
+
+### Two keystrokes to anywhere
+
+Highlight a destination, press `*`, give it a letter. It then appears at the
+**top level** next to the numbered groups, so a frequent target costs `<C-g>`
+then one key — no drilling. Bindings persist in
+`stdpath("state")/autovim-nav-binds.json`, keyed by a stable destination id
+(`finder.dbase`), so they survive sections being reordered.
+
+`j`/`k` move, `q` closes — those three letters are reserved and cannot be bound.
+`:AutovimNavUnbind <letter>` removes a binding. A binding whose destination no
+longer exists (a renamed agent, a disabled section) is hidden rather than shown
+as a dead row, and kept on disk rather than silently discarded.
+
+### Browsing the web in a pane
+
+`browser → open in tmux split pane` launches
+[terminal-browser](https://github.com/zenbu-labs/terminal-browser) beside
+Neovim. The entry only appears when the binary is installed **and** you are
+inside tmux, because both are required: terminal-browser paints via the kitty
+graphics protocol, and Neovim's built-in terminal (libvterm) neither implements
+nor forwards it — so it cannot render *inside* Neovim at all. A sibling tmux pane
+is a real terminal talking straight to the host, which is exactly why that works.
+
 ## Floating Terminals on F-Keys
+
+> These still work, but `<C-g>` ([Navigation](#navigation-c-g)) is the primary surface now and reaches the same terminals without a function key.
 
 `F1` through `F4` toggle four playground terminals owned by [auto-agents.nvim](https://github.com/yongjohnlee80/auto-agents) (the `T1..T4` slots described in [Multi-agent panel](#multi-agent-panel)). Each is a persistent floating shell — same key from inside hides it, same key from outside brings it back, marker-based lookup that survives `:cd`. F5 is the panel toggle, not a fifth terminal — Codex / Claude / Gemini / etc. live as agent slots **inside** the panel now (configure via `agent add` in the admin REPL).
 
