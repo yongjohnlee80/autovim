@@ -28,27 +28,11 @@
 -- `<leader>sG`, `<leader>sW`) and the `<a-c>` toggle inside an open picker,
 -- which still swaps between the buffer's root dir and cwd on demand.
 
----Resolve one of auto-core's built-in path variables. Soft dependency —
----autovim must stay usable when auto-core is absent or not yet loaded.
----@param name string  `"WORKSPACE"` or `"KB_ROOT"`
----@return string?
-local function auto_core_var(name)
-  local ok, vars = pcall(require, "auto-core.todo.vars")
-  if not ok then
-    return nil
-  end
-  local ok_value, value = pcall(vars.get, name)
-  if ok_value and type(value) == "string" and value ~= "" then
-    return value
-  end
-  return nil
-end
-
----The workspace root, falling back to cwd when auto-core can't answer.
----@return string
-local function workspace_root()
-  return auto_core_var("WORKSPACE") or vim.fn.getcwd()
-end
+-- Scope resolution lives in `utils.scope` — shared with the lazygit override in
+-- `lua/config/keymaps.lua`, because both had the same buffer-follows-the-KB bug
+-- and a second copy of the resolver would let them drift.
+local scope = require("utils.scope")
+local workspace_root = scope.workspace_root
 
 ---Picker entry pinned to the workspace root.
 ---@param command string  a `LazyVim.pick` command name

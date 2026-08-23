@@ -64,3 +64,20 @@ vim.keymap.set("i", "<C-g>", function()
     require("utils.nav.ui").open()
   end)
 end, { desc = "Navigate (central modal)" })
+
+-- ── lazygit: pin to the workspace, not the focused buffer's repo ──────────
+--
+-- LazyVim binds `<leader>gg` to `Snacks.lazygit({ cwd = LazyVim.root.git() })`
+-- (`lazyvim/config/keymaps.lua`), and `root.git()` walks up from the CURRENT
+-- BUFFER looking for `.git`. The knowledge base is its own repo, so with a KB
+-- document focused — an agent's `.todo-list/` task, an ADR, an md-harpoon
+-- preview — lazygit opened on the KB instead of the project, silently.
+--
+-- Identical to the bug already fixed for the Root-Dir pickers, so both now
+-- resolve through `utils.scope`. `<leader>gG` (explicitly cwd-scoped) and
+-- `<leader>gL` are left alone — asking for cwd should get cwd.
+if vim.fn.executable("lazygit") == 1 then
+  vim.keymap.set("n", "<leader>gg", function()
+    Snacks.lazygit({ cwd = require("utils.scope").workspace_root() })
+  end, { desc = "Lazygit (Workspace)" })
+end

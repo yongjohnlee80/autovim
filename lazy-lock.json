@@ -1,8 +1,8 @@
 {
   "LazyVim": { "branch": "main", "commit": "c10948c50b18fae7f256433afdef09e432410480" },
   "auto-agents": { "branch": "main", "commit": "ee92fc474f7d5669aca531e58c2b2b2376d0a504" },
-  "auto-core.nvim": { "branch": "main", "commit": "53610a98901b4aed8170d0ba5aa815a6f163eeb7" },
-  "auto-finder.nvim": { "branch": "main", "commit": "12a54be2e2bce564d540923c3768963d2da36e5e" },
+  "auto-core.nvim": { "branch": "main", "commit": "3cee5d8dbce105e6935ecf905da3892d7db20e36" },
+  "auto-finder.nvim": { "branch": "main", "commit": "c1872ef639b824189bdf93a9a3d202a7812bead3" },
   "auto-run.nvim": { "branch": "main", "commit": "3ee2f7bb79a14e31b7b6064e72fdbf50614ec137" },
   "autodb": { "branch": "main", "commit": "417e55974f6d4d8ad1ba64da70179a67a85e1271" },
   "bamboo.nvim": { "branch": "master", "commit": "1309bc88bffcf1bedc3e84e7fa9004de93da774a" },
@@ -64,5 +64,5 @@
   "ts-comments.nvim": { "branch": "main", "commit": "a59d6092213447450191122c9346f309161504cb" },
   "venv-selector.nvim": { "branch": "main", "commit": "cc4bb3975de8835291f9bb45889e96c6b2795fc4" },
   "which-key.nvim": { "branch": "main", "commit": "3aab2147e74890957785941f0c1ad87d0a44c15a" },
-  "worktree.nvim": { "branch": "main", "commit": "795b9aaeb73b07797fc0ade06d4806438de79a5e" }
+  "worktree.nvim": { "branch": "main", "commit": "1661acfe6b0ec18adcf8bbf717cd54ecb4bf0c09" }
 }
