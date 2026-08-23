@@ -252,13 +252,26 @@ hard_reset_to_origin() {
   # which is worth a loud warning but not a dead end.
   local ref="" fetch_err=""
   log "Fetching origin/$target_branch (with tags)"
-  if fetch_err="$(git -C "$NVIM_CONFIG" fetch --tags origin "$target_branch" 2>&1)"; then
+  # `--force` on the TAG fetch, and it is load-bearing.
+  #
+  # Without it, a tag that upstream has MOVED is refused —
+  # `! [rejected] v0.4.0 -> v0.4.0 (would clobber existing tag)` — and when the
+  # branch is already current that rejection is the only ref work, so
+  # `git fetch` exits 1 and this function dies. That is the actual cause of the
+  # reported `cannot continue without fetching origin/main`: three tags were
+  # re-pointed upstream, and v0.4.5 had just started passing `--tags` at all,
+  # so machines holding the pre-move tag objects began failing.
+  #
+  # A consumer tracking upstream releases wants the remote's idea of a tag to
+  # win; refusing to move it only strands the checkout. Not `--prune-tags`,
+  # which would also DELETE local tags absent from the remote.
+  if fetch_err="$(git -C "$NVIM_CONFIG" fetch --tags --force origin "$target_branch" 2>&1)"; then
     ref="origin/$target_branch"
   else
     warn "git fetch origin $target_branch failed in $NVIM_CONFIG:"
     printf '%s\n' "$fetch_err" | sed 's/^/    /' >&2
     warn "Falling back to $REPO"
-    if fetch_err="$(git -C "$NVIM_CONFIG" fetch --tags "$REPO" "$target_branch" 2>&1)"; then
+    if fetch_err="$(git -C "$NVIM_CONFIG" fetch --tags --force "$REPO" "$target_branch" 2>&1)"; then
       ref="FETCH_HEAD"
       log "Fetched from $REPO instead of origin."
       warn "Your 'origin' remote is unusable on this machine. To fix it permanently:"
