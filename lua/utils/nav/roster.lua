@@ -141,7 +141,14 @@ function M.slots()
 
   -- Show every slot the panel has, not just the configured ones: an empty slot
   -- is still navigable and its emptiness is worth seeing.
-  max_slot = max_slot or math.max(highest, M.DEFAULT_MAX_SLOT)
+  --
+  -- But NEVER below the highest CONFIGURED slot. `MAX_SLOT` tracks
+  -- `cfg.panel.slot_count`, which can legitimately sit below a roster entry —
+  -- an agent configured at slot 6 while the panel is sized to 5. Capping at
+  -- MAX_SLOT there made that agent invisible and unreachable, which is exactly
+  -- the failure this group exists to prevent (observed: `white-vision` at slot
+  -- 6 vanished when slot_count was 5).
+  max_slot = math.max(max_slot or 0, highest, M.DEFAULT_MAX_SLOT)
 
   local out = { { slot = 0, label = "admin" } }
   for s = 1, max_slot do

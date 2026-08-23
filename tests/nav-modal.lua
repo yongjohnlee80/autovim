@@ -161,6 +161,30 @@ do
   -- actual tree, which is what matters.
 end
 
+io.stdout:write("\n[1a] a configured agent is never hidden by slot_count\n")
+-- `MAX_SLOT` tracks `cfg.panel.slot_count`, which can sit BELOW a roster entry
+-- (an agent at slot 6 while the panel is sized to 5). Capping at MAX_SLOT made
+-- that agent invisible — observed live with `white-vision`.
+do
+  local roster = require("utils.nav.roster")
+  local saved_probe = { config_dir = roster.probe.config_dir, read = roster.probe.read,
+                        glob = roster.probe.glob }
+  roster.probe.glob = function() return { "/fake/global.toml" } end
+  roster.probe.read = function()
+    return '[[agents]]\nslot = 1\nname = "one"\n[[agents]]\nslot = 6\nname = "six"\n'
+  end
+  package.loaded["auto-agents"] = { MAX_SLOT = 5, state = {} }
+  local slots = roster.slots()
+  local labels = {}
+  for _, sl in ipairs(slots) do labels[sl.label] = sl.slot end
+  ok("*** an agent above slot_count is still listed ***", labels["six"] == 6,
+    vim.inspect(labels))
+  ok("slot 0 is always present", labels["admin"] == 0)
+  package.loaded["auto-agents"] = nil
+  roster.probe.config_dir, roster.probe.read, roster.probe.glob =
+    saved_probe.config_dir, saved_probe.read, saved_probe.glob
+end
+
 io.stdout:write("\n[1b] buffers sit ABOVE views\n")
 registry.probe.buffers = function()
   return {
@@ -379,7 +403,7 @@ vim.fn.delete(scratch)
 
 -- Floor: sections [3]/[4] and the bind loops are the ones that could quietly
 -- stop contributing. Count taken before this check, so it excludes itself.
-local MIN_ASSERTIONS = 71
+local MIN_ASSERTIONS = 73
 do
   local ran = pass_count + fail_count
   ok(("assertion floor: ran %d, expected at least %d"):format(ran, MIN_ASSERTIONS),
