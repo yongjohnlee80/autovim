@@ -25,7 +25,7 @@ The workspace has several related checkouts:
 2. Use `<leader>gt` to show the multi-repo Git graph.
 3. Use `<F5>` to show the auto-agent panel.
 4. In slot 0, run `status`, `agent mem`, `kb sync`, and `resource list`.
-5. Use `<F6>` to show the navigation dock.
+5. Use `<F12>` to show the navigation dock, and `<F6>` (or `<C-g>`) for the central navigation modal.
 
 ## Nice-To-Have Panels
 

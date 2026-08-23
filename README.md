@@ -299,7 +299,7 @@ Override either with `[kb].root = "/abs/path"` in the TOML. KBs are typed: pick 
 A typical session opens `:AutoAgents` (or `<F5>`) and lands on the admin slot. From there:
 
 - **Direct slot focus.** `<leader>a0`..`a9` jumps to that slot. Inside admin, the same digits work in normal mode (no leader needed).
-- **Navigation dock.** `<F6>` (or `<F12>`) opens a small right-edge float listing every slot plus the editor. Press a digit to jump, `e` to return to the editor, anything else to dismiss. Mode-safe — terminal mode doesn't leak into editor buffers.
+- **Navigation dock.** `<F12>` opens a small right-edge float listing every slot plus the editor. Press a digit to jump, `e` to return to the editor, anything else to dismiss. Mode-safe — terminal mode doesn't leak into editor buffers. (`<F6>` used to open this too; as of v0.4.10 it opens the [central navigation modal](#navigation-c-g) instead, which reaches the same slots plus everything else.)
 - **Help on demand.** `<verb> ?` (e.g. `agent add ?`, `kb init ?`) pops a scrollable floating help window. `help open <verb>` opens the underlying markdown if you want to edit it.
 - **Wizards.** `agent add`, `agent edit`, `kb init`, `project init` walk you through prompts inside the admin REPL. `<C-c>` aborts at any step. Default for `kind = "claude"`: `diff_review = true` so that agent's edits open in the diff-review queue; additional/helper agents can set `diff_review = false` so their edits stay in their own terminals.
 
@@ -349,8 +349,8 @@ autodb's setup — and what happened to `lazysql` and `nvim-dbee` — is in [SQL
 |---|---|
 | `jk` | Escape insert mode (the only correct mapping) |
 | `<F5>` | Toggle the auto-agents panel (last-focused slot) |
-| `<F6>` / `<F12>` | Open the navigation dock (one-key slot dispatch) |
-| `<C-g>` | **Central navigation modal** — agents / finder / terminals / views / browser, with user-assignable letters. Works in normal *and* terminal mode. See [Navigation](#navigation-c-g) |
+| `<F12>` | Open the auto-agents navigation dock (one-key slot dispatch) |
+| `<C-g>` / `<F6>` | **Central navigation modal** — agents / finder / terminals / buffers / views / browser, with user-assignable letters. Works in normal, insert *and* terminal mode. See [Navigation](#navigation-c-g) |
 | `<leader>ac` | Toggle the panel |
 | `<leader>am` / `<leader>ai` / `<leader>ap` | Bootstrap-refresh a slot: re-ingest doc / re-assert identity / bootstrap mailbox permissions (PERMISSION.md, ADR-0036). Project commands: `:AutoAgentsProject`. |
 | `<leader>a0` | Focus admin (slot 0) — the REPL where wizards live |
@@ -431,7 +431,8 @@ Plus `:AutoAgentsTermSend <slot> <text>` (paste-safe via a 60ms-deferred CR) let
 |---|---|
 | `F1`..`F4` | Auto-agents playground terminal T1..T4 (focus / hide) |
 | `F5` | Toggle the auto-agents panel |
-| `F6` / `F12` | Open the auto-agents navigation dock |
+| `F6` | Open the central navigation modal (same as `<C-g>`) |
+| `F12` | Open the auto-agents navigation dock |
 
 ### Markdown
 
@@ -539,16 +540,23 @@ be on your `$PATH`.
 `<C-g>` opens a centred modal that reaches everything in the config. It is the
 **primary** navigation surface as of v0.4 — the F-keys below still work, but they
 are no longer the only route. F-keys are unreliable across terminal emulators,
-tmux and SSH; `<C-g>` is not.
+tmux and SSH; `<C-g>` is not. `<F6>` opens the same modal for anyone who prefers
+a function key.
 
 ```
- 1.  agents    (6)      <CR> go
- 2.  finder    (3)      *    bind a letter to the highlighted destination
- 3.  terminal  (4)      h    back up a level
- 4.  views     (4)      q    close
- 5.  browser   (1)
- d.  3  dbase          <- a destination you bound to `d`
+ navigate · my-project        <- the workspace these letters belong to
+ 1.  agents    (6)      <CR>     go
+ 2.  finder    (3)      *        bind a letter to the highlighted destination
+ 3.  terminal  (4)      h / <BS> back up a level
+ 4.  buffers   (9)      q        close
+ 5.  views     (3)
+ 6.  browser   (1)
+ d.  dbase                    <- a destination you bound to `d`
 ```
+
+`views` holds the odds and ends: the diff queue, the auto-core log, and
+Neovim's own `:help` — which otherwise lost its one-gesture route when `F1`
+went to a playground terminal.
 
 Groups are **discovered, not hard-coded**, so the modal shows what your machine
 actually has: your configured agent slots by name, whichever auto-finder
@@ -564,10 +572,20 @@ then one key — no drilling. Bindings persist in
 `stdpath("state")/autovim-nav-binds.json`, keyed by a stable destination id
 (`finder.dbase`), so they survive sections being reordered.
 
-`j`/`k` move, `q` closes — those three letters are reserved and cannot be bound.
-`:AutovimNavUnbind <letter>` removes a binding. A binding whose destination no
-longer exists (a renamed agent, a disabled section) is hidden rather than shown
-as a dead row, and kept on disk rather than silently discarded.
+**Letters are scoped to the workspace** (`$WORKSPACE`, the same root lazygit and
+the Root-Dir pickers use), and the modal's title names it. That is not
+cosmetic: which auto-finder sections exist and which agents are configured are
+both per-project, so `finder.todos` is a real destination in one project and
+nothing at all in the next, and `agents.lector` names an agent another project
+has never heard of. Each workspace gets its own set, and the same letter can
+mean the right thing in each. An older, unscoped binds file is adopted by the
+first workspace you open after upgrading; rebind elsewhere as you go.
+
+`j`/`k` move, `h` backs up, `q` closes — those four letters are reserved and
+cannot be bound. `:AutovimNavUnbind <letter>` removes a binding **from the
+current workspace**. A binding whose destination no longer exists (a renamed
+agent, a disabled section) is hidden rather than shown as a dead row, and kept
+on disk rather than silently discarded.
 
 ### Browsing the web in a pane
 

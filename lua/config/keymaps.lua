@@ -49,6 +49,15 @@ vim.keymap.set({ "n", "t" }, "<C-g>", function()
   require("utils.nav.ui").open()
 end, { desc = "Navigate (central modal)" })
 
+-- `<F6>` reaches the same modal. It used to open auto-agents' navigation dock
+-- (a slots-only list that `<F12>` still provides), which this modal supersedes:
+-- it reaches every agent slot AND the finder sections, terminals, buffers and
+-- views. Kept as an alternative to `<C-g>` rather than a replacement — F-keys
+-- are the unreliable surface across tmux/SSH, which is why `<C-g>` is primary.
+vim.keymap.set({ "n", "t" }, "<F6>", function()
+  require("utils.nav.ui").open()
+end, { desc = "Navigate (central modal)" })
+
 -- Insert mode too, so you can navigate away mid-typing without reaching for
 -- <Esc> first. `stopinsert` runs before the modal opens, otherwise the float
 -- inherits insert mode and the single-key dispatch types characters instead of
@@ -58,12 +67,16 @@ end, { desc = "Navigate (central modal)" })
 -- sequence, `<C-g>j`/`<C-g>k` to move between insert-start columns). Deliberate
 -- trade, on request: those are rarely typed by hand, and `<C-g>u` inside a
 -- mapping's RHS is unaffected — only interactive typing of the prefix is.
-vim.keymap.set("i", "<C-g>", function()
+local function nav_from_insert()
   vim.cmd("stopinsert")
   vim.schedule(function()
     require("utils.nav.ui").open()
   end)
-end, { desc = "Navigate (central modal)" })
+end
+
+vim.keymap.set("i", "<C-g>", nav_from_insert, { desc = "Navigate (central modal)" })
+-- `<F6>` shadows nothing in insert mode, so it is the cheaper of the two here.
+vim.keymap.set("i", "<F6>", nav_from_insert, { desc = "Navigate (central modal)" })
 
 -- ── lazygit: pin to the workspace, not the focused buffer's repo ──────────
 --

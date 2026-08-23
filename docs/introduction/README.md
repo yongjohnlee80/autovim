@@ -92,7 +92,8 @@ Useful entry points:
 | Action | Usage |
 |---|---|
 | Toggle panel | `<F5>` or `<leader>ac` |
-| Open navigation dock | `<F6>` or `<F12>` |
+| Open navigation dock | `<F12>` |
+| Open the central navigation modal | `<C-g>` or `<F6>` |
 | Focus admin | `<leader>a0` |
 | Focus agent slot | `<leader>a1` through `<leader>a9` |
 | Bootstrap mailbox permissions for a slot | `<leader>ap` |

@@ -71,7 +71,18 @@ return {
         desc = "Send current buffer to an agent",
       },
       { "<F5>", "<cmd>AutoAgents<cr>", mode = { "n", "t" }, desc = "Toggle auto-agents panel" },
-      { "<F6>", "<cmd>AutoAgentsDock<cr>", mode = { "n", "t" }, desc = "Auto-agents nav dock" },
+      -- `<F6>` is NOT here any more: it now opens the central navigation modal,
+      -- bound in `lua/config/keymaps.lua` beside `<C-g>`. The dock reached only
+      -- auto-agents' own slots; the modal reaches those AND the finder
+      -- sections, terminals, buffers and views — and it is the surface the
+      -- rest of v0.4 is built around, so the second F-key that used to
+      -- duplicate the dock is better spent on it. `<F12>` keeps the dock for
+      -- anyone who still wants the narrow, agents-only list.
+      --
+      -- It is bound over THERE rather than here because the modal is config,
+      -- not part of this plugin: leaving it in this spec would make `<F6>`
+      -- disappear the moment someone disables auto-agents, and would route the
+      -- keypress through lazy's loader for a plugin the modal never calls.
       { "<F12>", "<cmd>AutoAgentsDock<cr>", mode = { "n", "t" }, desc = "Auto-agents nav dock" },
       -- Slot focus keymaps (`<leader>a0..aN`) are NOT registered here.
       -- The plugin owns them: `auto-agents.setup()` calls

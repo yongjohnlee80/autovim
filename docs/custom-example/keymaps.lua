@@ -7,7 +7,8 @@
 --
 -- Stock keymap namespaces (preserve these unless you mean to retire them):
 --   <leader>a*     auto-agents
---   <F5> / <F6> / <F12>  auto-agents
+--   <F5> / <F12>   auto-agents
+--   <C-g> / <F6>   central navigation modal (lua/config/keymaps.lua)
 --   <leader>r*     remote-sync
 --   <leader>gq / gQ remote-sync
 --   <leader>gw / gW / gA / gR / gC / gc / gt  worktree.nvim

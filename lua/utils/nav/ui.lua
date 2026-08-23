@@ -1,4 +1,4 @@
--- The centred navigation modal (`<C-g>`).
+-- The centred navigation modal (`<C-g>`, also `<F6>`).
 --
 -- Deliberately a plain `nvim_open_win` float rather than a picker: the modal
 -- needs single-key dispatch, a `*` bind gesture, and two levels of drill-down,
@@ -10,6 +10,9 @@
 --   j / k       move, <CR> activate, h / <BS> back up a level
 --   *           assign a letter to the highlighted destination
 --   q / <Esc>   close
+--
+-- The user-assigned letters are per WORKSPACE (see `nav.binds`), so the top
+-- level names the workspace they belong to.
 
 local registry = require("utils.nav.registry")
 local binds = require("utils.nav.binds")
@@ -93,7 +96,11 @@ local function build_rows(group_id)
     end
   end
 
-  return rows, "navigate"
+  -- Name the workspace at the top level: the letter shortcuts below the groups
+  -- belong to THIS workspace only (`nav.binds`), and "my letter is missing"
+  -- is otherwise indistinguishable from "my bind was lost".
+  local tail = vim.fn.fnamemodify(binds.workspace(), ":t")
+  return rows, tail ~= "" and ("navigate · " .. tail) or "navigate"
 end
 
 local function render()
@@ -119,7 +126,7 @@ local function render()
     lines = { " (nothing to navigate to)" }
   end
 
-  local hint = st.group and " <CR> go · h back · * bind · q close"
+  local hint = st.group and " <CR> go · h/<BS> back · * bind · q close"
     or " <CR> go · * bind letter · q close"
   lines[#lines + 1] = ""
   lines[#lines + 1] = hint
@@ -295,6 +302,10 @@ function M.open()
       end
     end)
   end
+  -- RESERVED is what keeps this loop from clobbering the modal's own letter
+  -- maps. `h` used to be missing from it, so the back mapping above was
+  -- overwritten here by a bind lookup that resolved to nothing — the modal
+  -- advertised `h back` while only `<BS>` worked.
   for c = string.byte("a"), string.byte("z") do
     local letter = string.char(c)
     if not binds.RESERVED[letter] then

@@ -265,6 +265,16 @@ function M.tree()
   local candidates = {
     { cmd = "AutoAgentsDiffQueue", id = "views.diff-queue", label = "diff queue" },
     { cmd = "AutoCoreLog", id = "views.core-log", label = "auto-core log" },
+    -- Neovim's own help, appended LAST so the two rows above keep the numbers
+    -- they already had.
+    --
+    -- It belongs here because nothing else reaches it in one gesture any more:
+    -- `F1` — the key every other editor spends on help — went to auto-agents'
+    -- playground terminal T1, and when the F-key surface was retired in favour
+    -- of this modal, help was not among the destinations that moved across.
+    -- `:help` with no argument opens the main table of contents, so it meets
+    -- the no-required-arguments rule above.
+    { cmd = "help", id = "views.help", label = "help" },
   }
   for _, c in ipairs(candidates) do
     if M.probe.has_command(c.cmd) then

@@ -62,7 +62,10 @@ local function stub_full()
     return true
   end
   registry.probe.has_command = function(name)
-    return name == "AutoAgentsDiffQueue" or name == "AutoCoreLog"
+    -- `help` is a built-in Ex command (`exists(":help") == 2`), so a real
+    -- session always offers it; the stub has to agree or the views group here
+    -- would be a shape that cannot occur.
+    return name == "AutoAgentsDiffQueue" or name == "AutoCoreLog" or name == "help"
   end
 end
 
@@ -143,8 +146,25 @@ ok("terminals dispatch AutoAgentsTerm focus N",
   by_group.terminal.children[4].action.value == "AutoAgentsTerm focus 4",
   by_group.terminal.children[4].action.value)
 
-ok("only views whose command EXISTS are offered", #by_group.views.children == 2,
+ok("only views whose command EXISTS are offered", #by_group.views.children == 3,
   vim.inspect(vim.tbl_map(function(d) return d.id end, by_group.views.children)))
+
+-- Help had no one-gesture route left once the F-keys were retired: `F1`, the
+-- key every other editor spends on help, had gone to playground terminal T1.
+do
+  local help
+  for _, d in ipairs(by_group.views.children) do
+    if d.id == "views.help" then help = d end
+  end
+  ok("*** views offers Neovim help ***", help ~= nil,
+    vim.inspect(vim.tbl_map(function(d) return d.id end, by_group.views.children)))
+  ok("and it dispatches a bare :help (no required argument)",
+    help and help.action.kind == "cmd" and help.action.value == "help",
+    help and vim.inspect(help.action))
+  ok("appended LAST, so the pre-existing rows keep their numbers",
+    by_group.views.children[#by_group.views.children].id == "views.help",
+    by_group.views.children[#by_group.views.children].id)
+end
 -- v0.4.3 offered `AutoAgentsStatus` (a two-arg SETTER agents call to report
 -- their own state — it hit its usage-error path when invoked bare) and
 -- `AutoAgentsDock` (which duplicated this modal). Neither may come back.
@@ -282,9 +302,16 @@ ok("an uppercase letter is refused", binds.reject_reason("D") ~= nil)
 ok("a digit is refused", binds.reject_reason("1") ~= nil)
 ok("a multi-char string is refused", binds.reject_reason("dd") ~= nil)
 ok("nil is refused", binds.reject_reason(nil) ~= nil)
-for _, r in ipairs({ "j", "k", "q" }) do
+-- `h` is reserved because the modal MAPS it (back up a level). It was missing
+-- from this set, so `ui.lua`'s a-z bind loop re-mapped it to a bind lookup and
+-- silently ate the back mapping — the hint line said `h back` while only `<BS>`
+-- worked.
+for _, r in ipairs({ "h", "j", "k", "q" }) do
   ok(("`%s` is reserved by the modal"):format(r), binds.reject_reason(r) ~= nil)
 end
+ok("the refusal names what the reserved keys do",
+  (binds.reject_reason("h") or ""):find("back", 1, true) ~= nil,
+  binds.reject_reason("h"))
 
 io.stdout:write("\n[6] bind persistence\n")
 stub_full()
@@ -314,6 +341,74 @@ local loaded = binds.load()
 ok("non-letter keys are dropped on load",
   loaded["d"] == "finder.repos" and loaded["TOOLONG"] == nil and loaded["9"] == nil,
   vim.inspect(loaded))
+
+io.stdout:write("\n[6a] binds are scoped to the workspace\n")
+-- A destination id only means something inside the workspace that produced it:
+-- auto-finder's enabled sections and the auto-agents roster are both
+-- per-project config, so `finder.todos` exists in one project and not the next,
+-- and `agents.lector` names an agent another project has never heard of. One
+-- global map made every letter either dead or wrong outside the workspace it
+-- was created in.
+do
+  binds.save({})
+  binds._workspace_override = "/ws/alpha"
+  binds.save({})
+  ok("a fresh workspace starts with no binds", vim.tbl_isempty(binds.load()),
+    vim.inspect(binds.load()))
+  binds.bind("d", "finder.repos")
+  ok("a bind lands in the workspace that made it", binds.load()["d"] == "finder.repos",
+    vim.inspect(binds.load()))
+
+  binds._workspace_override = "/ws/beta"
+  ok("*** and is INVISIBLE from another workspace ***", binds.load()["d"] == nil,
+    vim.inspect(binds.load()))
+  binds.bind("d", "finder.files")
+  ok("the same letter can mean something else there",
+    binds.load()["d"] == "finder.files", vim.inspect(binds.load()))
+  ok("key_for is workspace-scoped too", binds.key_for("finder.files") == "d"
+    and binds.key_for("finder.repos") == nil, tostring(binds.key_for("finder.repos")))
+
+  binds._workspace_override = "/ws/alpha"
+  ok("*** the first workspace is untouched by the second ***",
+    binds.load()["d"] == "finder.repos", vim.inspect(binds.load()))
+
+  local all = binds.load_all()
+  ok("both workspaces persist side by side in one file",
+    all["/ws/alpha"] and all["/ws/beta"] and all["/ws/alpha"]["d"] == "finder.repos"
+    and all["/ws/beta"]["d"] == "finder.files", vim.inspect(all))
+
+  binds.unbind("d")
+  binds._workspace_override = "/ws/beta"
+  ok("unbinding in one workspace leaves the other alone",
+    binds.load()["d"] == "finder.files", vim.inspect(binds.load()))
+  ok("unbinding what this workspace never bound is reported", (function()
+    binds._workspace_override = "/ws/alpha"
+    local okd = select(1, binds.unbind("d"))
+    return okd == false
+  end)())
+end
+
+-- The pre-scoping file was a flat letter -> id map with no workspace at all.
+-- Those binds were global, so they fold into whichever workspace is open when
+-- the migration runs, and the file is rewritten nested immediately — one shape
+-- on disk, one answer to "why is this letter here".
+do
+  vim.fn.writefile({ '{ "d": "finder.repos", "e": "views.core-log" }' }, scratch)
+  binds._workspace_override = "/ws/gamma"
+  local migrated = binds.load()
+  ok("*** a pre-scoping flat file is adopted by the current workspace ***",
+    migrated["d"] == "finder.repos" and migrated["e"] == "views.core-log",
+    vim.inspect(migrated))
+  local all = binds.load_all()
+  ok("and rewritten nested, so the flat shape is gone for good",
+    all["/ws/gamma"] ~= nil and all["/ws/gamma"]["d"] == "finder.repos",
+    vim.inspect(all))
+  binds._workspace_override = "/ws/delta"
+  ok("a different workspace does NOT re-adopt them", vim.tbl_isempty(binds.load()),
+    vim.inspect(binds.load()))
+end
+binds._workspace_override = nil
+binds.save({})
 
 io.stdout:write("\n[7] the modal opens, drills down, and closes\n")
 vim.o.columns, vim.o.lines = 120, 40
@@ -354,6 +449,69 @@ end
 ui.close()
 ok("close() disposes the window", ui.is_open() == false)
 ok("and forgets its state", ui._state == nil)
+
+io.stdout:write("\n[7a] the modal keeps its own letters\n")
+-- The regression this pins: `ui.open()` maps `h` to "back up a level", then
+-- loops a-z mapping every non-RESERVED letter to a bind lookup. With `h` absent
+-- from RESERVED the second mapping won, so `h` did nothing while the hint line
+-- still promised it. Asserted through the real buffer keymap, not the source.
+do
+  stub_full()
+  binds.save({})
+  ui.open()
+  local st7 = ui._state
+  local function buf_callback(lhs)
+    for _, m in ipairs(vim.api.nvim_buf_get_keymap(st7.buf, "n")) do
+      if m.lhs == lhs then
+        return m.callback
+      end
+    end
+  end
+  local function drill()
+    local key
+    for _, r in ipairs(ui._state.rows) do
+      if r.group == "finder" then key = r.key end
+    end
+    local cb = key and buf_callback(key)
+    if cb then pcall(cb) end
+  end
+
+  drill()
+  ok("pressing a group's number drills into it",
+    ui._state ~= nil and ui._state.group == "finder",
+    ui._state and tostring(ui._state.group))
+  local hint = table.concat(vim.api.nvim_buf_get_lines(st7.buf, 0, -1, false), "\n")
+  ok("the drill-down hint names BOTH back keys", hint:find("h/<BS> back", 1, true) ~= nil,
+    hint)
+
+  local h_cb = buf_callback("h")
+  ok("`h` is mapped in the modal buffer", type(h_cb) == "function", type(h_cb))
+  if h_cb then pcall(h_cb) end
+  ok("*** and it backs up a level, rather than resolving a bind ***",
+    ui._state ~= nil and ui._state.group == nil,
+    ui._state and tostring(ui._state.group))
+
+  drill()
+  local bs_cb = buf_callback("<BS>")
+  ok("<BS> is mapped too", type(bs_cb) == "function", type(bs_cb))
+  if bs_cb then pcall(bs_cb) end
+  ok("and does the same thing", ui._state ~= nil and ui._state.group == nil,
+    ui._state and tostring(ui._state.group))
+  ui.close()
+end
+
+-- The top level names the workspace, so "my letter is missing" is
+-- distinguishable from "my bind was lost" now that binds are per-workspace.
+do
+  binds._workspace_override = "/ws/epsilon"
+  ui.open()
+  local cfg = vim.api.nvim_win_get_config(ui._state.win)
+  local title = type(cfg.title) == "table" and cfg.title[1] and cfg.title[1][1] or tostring(cfg.title)
+  ok("the top-level title names the workspace", tostring(title):find("epsilon", 1, true) ~= nil,
+    tostring(title))
+  ui.close()
+  binds._workspace_override = nil
+end
 
 io.stdout:write("\n[8] a user bind shows at the TOP level, next to the groups\n")
 binds.save({ d = "finder.repos" })
@@ -403,7 +561,7 @@ vim.fn.delete(scratch)
 
 -- Floor: sections [3]/[4] and the bind loops are the ones that could quietly
 -- stop contributing. Count taken before this check, so it excludes itself.
-local MIN_ASSERTIONS = 73
+local MIN_ASSERTIONS = 96
 do
   local ran = pass_count + fail_count
   ok(("assertion floor: ran %d, expected at least %d"):format(ran, MIN_ASSERTIONS),
