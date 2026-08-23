@@ -70,32 +70,28 @@ die()  { printf '\033[1;31m[err]\033[0m %s\n' "$*" >&2; exit 1; }
 # Derive the active branch the same way install.sh did. If the user
 # has a tracked `.git/` we trust THAT branch over our guess; otherwise
 # we pick by OS, matching install.sh's behavior.
+# RETIRED BRANCH — this update.sh only knows how to migrate you to `main`.
+#
+# This branch is frozen at v0.3.29. Every OS-specific behaviour it carried now
+# lives on `main` behind a runtime check in `lua/utils/platform.lua`, so there
+# is nothing left here to update TO.
+#
+# The previous version of this function returned the local checkout's current
+# branch, which made update.sh a fixed point: it reset to origin/<this branch>,
+# rsynced this branch's tree back down — including this very script — and left
+# you exactly where you started. You could never reach v0.4 by running it.
+#
+# So it returns `main` unconditionally. AUTOVIM_BRANCH remains the escape hatch
+# for forks.
 detect_branch() {
-  if [[ -d "$NVIM_CONFIG/.git" ]] && git -C "$NVIM_CONFIG" rev-parse --abbrev-ref HEAD >/dev/null 2>&1; then
-    git -C "$NVIM_CONFIG" rev-parse --abbrev-ref HEAD
-    return
-  fi
-  case "$(uname -s)" in
-    Darwin) echo "mac-os" ;;
-    Linux)
-      if [[ -r /etc/os-release ]]; then
-        . /etc/os-release
-        case "${ID:-}" in
-          arch|manjaro|endeavouros)
-            if [[ -d "$HOME/.config/omarchy" ]] || command -v omarchy >/dev/null 2>&1; then
-              echo "omarchy"
-            else
-              echo "main"
-            fi
-            ;;
-          *) echo "main" ;;
-        esac
-      else
-        echo "main"
-      fi
-      ;;
-    *) echo "main" ;;
-  esac
+  echo "${AUTOVIM_BRANCH:-main}"
+}
+
+# The branch this checkout is on right now, or empty when there is no tracked
+# `.git/` (rsync-overlay installs).
+current_local_branch() {
+  [[ -d "$NVIM_CONFIG/.git" ]] || return 0
+  git -C "$NVIM_CONFIG" rev-parse --abbrev-ref HEAD 2>/dev/null || true
 }
 
 # Idempotent sanity-check that mirrors install.sh's `scaffold_custom`.
@@ -206,11 +202,28 @@ hard_reset_to_origin() {
     log "No .git/ in $NVIM_CONFIG — skipping hard reset; rsync will handle the overlay"
     return
   fi
-  log "Hard-resetting $NVIM_CONFIG/.git to origin/$target_branch"
+  local local_branch
+  local_branch="$(current_local_branch)"
+
+  log "Fetching origin/$target_branch"
   git -C "$NVIM_CONFIG" fetch --quiet origin "$target_branch" \
     || die "git fetch origin $target_branch failed in $NVIM_CONFIG"
-  git -C "$NVIM_CONFIG" reset --hard --quiet "origin/$target_branch" \
-    || die "git reset --hard origin/$target_branch failed in $NVIM_CONFIG"
+
+  if [[ -n "$local_branch" && "$local_branch" != "$target_branch" ]]; then
+    warn "This install tracks the RETIRED '$local_branch' branch."
+    warn "  Migrating it to '$target_branch', where all of that behaviour now"
+    warn "  lives behind a runtime check. Your gitignored files (lua/custom/,"
+    warn "  .auto-agents-config/, .autovim-remote.json) are untouched."
+  fi
+
+  # `checkout -f -B` in ONE step: create-or-reset the local branch to the
+  # fetched tip AND move HEAD onto it. A bare `reset --hard origin/main` while
+  # HEAD sits on a retired branch repoints THAT ref at main's content and leaves
+  # you on a branch name upstream no longer updates — the update looks like it
+  # worked while still tracking a dead branch on the next run.
+  log "Checking out $target_branch at origin/$target_branch"
+  git -C "$NVIM_CONFIG" checkout -f -B "$target_branch" "origin/$target_branch" --quiet \
+    || die "git checkout -B $target_branch origin/$target_branch failed in $NVIM_CONFIG"
 }
 
 overlay_tracked_tree() {
