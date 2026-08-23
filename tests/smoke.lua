@@ -396,6 +396,33 @@ for _, pin in ipairs(all_pinned) do
       .. "will not materialise it")
 end
 
+io.stdout:write("\n[14] the declared Neovim floor is stated once and consistently\n")
+-- The floor is 0.11.2, set by LazyVim, and it is a HARD abort:
+-- `lazyvim/plugins/init.lua` prints "LazyVim requires Neovim >= 0.11.2", waits
+-- for a keypress and runs `:quit`. So an install that passes a too-low gate
+-- does not degrade — it hands the user an editor that cannot start.
+--
+-- install.sh gated at 0.10.0 until v0.4.2, which meant a Debian/Ubuntu box
+-- already carrying nvim 0.10.x satisfied the check, skipped the snap install,
+-- and then could not launch. This pins the number in one place and asserts the
+-- docs agree, so the two cannot drift apart again silently.
+--
+-- What this CANNOT check: whether 0.11.2 is still what LazyVim requires. That
+-- lives in the pinned LazyVim commit, not in this repo. When LazyVim moves its
+-- floor, `NVIM_MIN` in install.sh has to be moved by hand.
+local NVIM_MIN = "0.11.2"
+local install_src = table.concat(vim.fn.readfile(root .. "/install.sh"), "\n")
+ok("install.sh declares NVIM_MIN once, as a constant",
+  install_src:match('NVIM_MIN="([%d%.]+)"') == NVIM_MIN,
+  tostring(install_src:match('NVIM_MIN="([%d%.]+)"')))
+ok("install.sh no longer hard-codes a bare 0.10 floor",
+  install_src:match('version_ge "%$v" "0%.10') == nil)
+ok("install.sh gates on the constant, not a literal",
+  install_src:find('version_ge "$v" "$NVIM_MIN"', 1, true) ~= nil)
+local readme_src = table.concat(vim.fn.readfile(root .. "/README.md"), "\n")
+ok("the README states the same floor", readme_src:find(NVIM_MIN, 1, true) ~= nil)
+ok("the README no longer claims 0.10", readme_src:find("≥0.10", 1, true) == nil)
+
 -- Assertion floor. Several sections above are guarded by `if` (the lock-file
 -- JSON block only asserts when the decode succeeded), and a section that stops
 -- contributing assertions otherwise reports a smaller green number rather than
@@ -407,7 +434,7 @@ end
 -- Registered through `ok()` deliberately, so a shortfall lands in the FAIL list
 -- and the printed summary rather than as a bare non-zero exit after a "0
 -- failed" line — which reads to the runner like a post-summary crash.
-local MIN_ASSERTIONS = 110
+local MIN_ASSERTIONS = 115
 do
   local ran = pass_count + fail_count
   ok(("assertion floor: ran %d, expected at least %d"):format(ran, MIN_ASSERTIONS),

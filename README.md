@@ -10,6 +10,12 @@ curl -fsSL https://raw.githubusercontent.com/yongjohnlee80/autovim/main/install.
 
 The installer detects your OS (macOS, Arch, Debian / Ubuntu, Fedora), installs baseline dependencies via your native package manager, backs up any existing `~/.config/nvim` to a timestamped `*.bak-…` directory, clones the repo, and runs a headless `Lazy sync` so your first launch is already warmed up.
 
+**Neovim 0.11.2 or newer is required.** Not a soft preference: LazyVim aborts
+outright below it — it prints `LazyVim requires Neovim >= 0.11.2`, waits for a
+keypress and quits, so an older Neovim gives you an editor that will not start.
+`install.sh` checks this and, on Debian/Ubuntu where apt's Neovim is usually too
+old, installs a current one via snap.
+
 **One branch, every platform.** AutoVim used to ship a branch per environment (`main`, `mac-os`, `omarchy`) and install whichever matched. All of that now lives on `main` and is selected at runtime by [`lua/utils/platform.lua`](lua/utils/platform.lua), so macOS still gets its Mason-free `gopls` and Omarchy boxes still follow the system theme — from the same commit everyone else runs. OS detection in `install.sh` survives only to pick the right *system packages*, which genuinely differ per distro. See [Platform Behaviour](#platform-behaviour).
 
 The old `mac-os` and `omarchy` branches are **frozen at `v0.3.29`** rather than deleted, so existing checkouts keep working. They receive nothing from `v0.4.0` onward. Running `update.sh` on one of them migrates it to `main` and tells you it is doing so.
@@ -21,7 +27,7 @@ AUTOVIM_BRANCH=main AUTOVIM_SKIP_DEPS=1 \
   curl -fsSL https://raw.githubusercontent.com/yongjohnlee80/autovim/main/install.sh | bash
 ```
 
-`AUTOVIM_BRANCH` tracks a non-default branch (forks / testing), `AUTOVIM_REPO` installs from a fork, `AUTOVIM_SKIP_DEPS=1` skips the system-package step if you've already installed neovim (≥0.10), ripgrep, fd, fzf, git, gcc, and curl yourself.
+`AUTOVIM_BRANCH` tracks a non-default branch (forks / testing), `AUTOVIM_REPO` installs from a fork, `AUTOVIM_SKIP_DEPS=1` skips the system-package step if you've already installed neovim (**≥ 0.11.2** — see below), ripgrep, fd, fzf, git, gcc, curl, and go yourself.
 
 ### Upgrading to v0.3.0 — run `:Lazy update` first
 

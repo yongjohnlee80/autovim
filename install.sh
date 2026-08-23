@@ -27,6 +27,8 @@
 set -euo pipefail
 
 REPO="${AUTOVIM_REPO:-https://github.com/yongjohnlee80/autovim.git}"
+# The hard floor, set by LazyVim (lazyvim/plugins/init.lua aborts below it).
+NVIM_MIN="0.11.2"
 NVIM_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/nvim"
 
 log()  { printf '\033[1;36m==>\033[0m %s\n' "$*" >&2; }
@@ -96,12 +98,19 @@ install_deps() {
       # hook complains about the Go version, install a newer toolchain.
       sudo apt install -y ripgrep fd-find fzf git build-essential curl tmux rsync pandoc golang-go
 
-      # apt's nvim is almost always too old for LazyVim (<0.10). Use snap.
+      # apt's nvim is almost always too old for LazyVim. Use snap.
+      #
+      # The floor is 0.11.2, set by LazyVim, and it is a HARD abort, not a
+      # degradation: lazyvim/plugins/init.lua prints
+      # "LazyVim requires Neovim >= 0.11.2", waits for a keypress and quits.
+      # This gate said 0.10.0 until v0.4.2, so a Debian box already carrying
+      # nvim 0.10.x passed the check, skipped the snap, and then could not
+      # start. Keep this in step with LazyVim's requirement when it moves.
       local need_nvim=1
       if command -v nvim >/dev/null; then
         local v
         v="$(nvim --version | head -1 | awk '{print $2}' | sed 's/^v//')"
-        if version_ge "$v" "0.10.0"; then
+        if version_ge "$v" "$NVIM_MIN"; then
           need_nvim=0
         fi
       fi
@@ -110,8 +119,8 @@ install_deps() {
           log "Installing neovim via snap (apt's version is too old for LazyVim)"
           sudo snap install nvim --classic
         else
-          warn "neovim ≥0.10 not found and snap is unavailable. Install nvim manually (PPA or AppImage), then re-run with AUTOVIM_SKIP_DEPS=1."
-          die "neovim ≥0.10 required"
+          warn "neovim ≥$NVIM_MIN not found and snap is unavailable. Install nvim manually (PPA or AppImage), then re-run with AUTOVIM_SKIP_DEPS=1."
+          die "neovim ≥$NVIM_MIN required (LazyVim aborts below this)"
         fi
       fi
 
@@ -131,7 +140,7 @@ install_deps() {
       ;;
 
     *)
-      die "Automatic dep install isn't supported on this system. Install neovim (≥0.10), ripgrep, fd, fzf, git, gcc, curl, tmux, rsync, pandoc, go manually, then re-run with AUTOVIM_SKIP_DEPS=1."
+      die "Automatic dep install isn't supported on this system. Install neovim (≥$NVIM_MIN), ripgrep, fd, fzf, git, gcc, curl, tmux, rsync, pandoc, go manually, then re-run with AUTOVIM_SKIP_DEPS=1."
       ;;
   esac
 
