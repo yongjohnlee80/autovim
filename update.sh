@@ -8,6 +8,8 @@
 # Overrides (env vars):
 #   AUTOVIM_BRANCH=<name>           track a non-default branch (forks / testing)
 #   AUTOVIM_REPO=<url>              fork URL (default: upstream)
+#   AUTOVIM_UPDATE_REEXEC=1         internal: set on the self-handoff, so the
+#                                   successor knows not to hand off again
 #   AUTOVIM_NO_LAZY_SYNC=1          skip the post-update `Lazy! sync`
 #   AUTOVIM_NO_FAMILY_UPDATE=1      skip the `Lazy update <family>` step
 #   AUTOVIM_FAMILY_PLUGINS="a b"    space-separated override of the family list
@@ -46,6 +48,18 @@
 set -euo pipefail
 
 REPO="${AUTOVIM_REPO:-https://github.com/yongjohnlee80/autovim.git}"
+# This script updates ITSELF. `detect_branch` and every other decision below is
+# evaluated by the copy already on disk, so a run can only ever fetch the new
+# update.sh — the new logic does not take effect until the NEXT invocation. That
+# is why upgrades historically needed two runs. `maybe_reexec_self` closes it:
+# once the overlay lands a different update.sh, we hand off to it.
+SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+hash_of() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1
+  elif command -v shasum  >/dev/null 2>&1; then shasum -a 256 "$1" | cut -d' ' -f1
+  else echo "unhashable"; fi
+}
+SELF_HASH="$([[ -f "$SELF" ]] && hash_of "$SELF" || echo unknown)"
 NVIM_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/nvim"
 
 # AutoVim-authored plugins. After overlaying the new lazy-lock.json
@@ -267,6 +281,31 @@ overlay_tracked_tree() {
   rsync -a --exclude='.git/' "$tmpdir/autovim/" "$NVIM_CONFIG/"
 }
 
+# Hand off to the update.sh the overlay just installed, exactly once.
+#
+# Safe because `rsync -a` (no --inplace) writes a temp file and renames it, so
+# the bash executing this keeps its descriptor on the OLD inode and is never
+# reading a half-replaced file.
+#
+# The guard env var is what makes this terminate: the successor sees it set and
+# returns immediately, so at most one handoff happens per invocation no matter
+# how the two versions differ.
+maybe_reexec_self() {
+  if [[ -n "${AUTOVIM_UPDATE_REEXEC:-}" ]]; then
+    return 0
+  fi
+  local new="$NVIM_CONFIG/update.sh"
+  [[ -f "$new" ]] || return 0
+  [[ "$SELF_HASH" != "unknown" && "$SELF_HASH" != "unhashable" ]] || return 0
+  local new_hash
+  new_hash="$(hash_of "$new")"
+  [[ "$new_hash" != "$SELF_HASH" ]] || return 0
+
+  log "update.sh changed in this update — continuing with the new version"
+  log "  (this is what used to require a second run)"
+  AUTOVIM_UPDATE_REEXEC=1 exec bash "$new" "$@"
+}
+
 install_autovim_cli() {
   local src="$NVIM_CONFIG/autovim.sh"
   local bindir="$HOME/.local/bin"
@@ -365,6 +404,10 @@ main() {
 
   hard_reset_to_origin "$branch"
   overlay_tracked_tree "$branch"
+  # From here on the tracked tree is the NEW version's. If that includes a new
+  # update.sh, let it finish the job rather than running the rest with stale
+  # logic.
+  maybe_reexec_self "$@"
   scaffold_custom_if_missing
   migrate_lazysql_to_custom
   install_autovim_cli
