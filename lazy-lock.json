@@ -2,7 +2,7 @@
   "LazyVim": { "branch": "main", "commit": "c10948c50b18fae7f256433afdef09e432410480" },
   "auto-agents": { "branch": "main", "commit": "ee92fc474f7d5669aca531e58c2b2b2376d0a504" },
   "auto-core.nvim": { "branch": "main", "commit": "53610a98901b4aed8170d0ba5aa815a6f163eeb7" },
-  "auto-finder.nvim": { "branch": "main", "commit": "b6002c1c9d325d34eaaa1870085742e84024e84a" },
+  "auto-finder.nvim": { "branch": "main", "commit": "12a54be2e2bce564d540923c3768963d2da36e5e" },
   "auto-run.nvim": { "branch": "main", "commit": "3ee2f7bb79a14e31b7b6064e72fdbf50614ec137" },
   "autodb": { "branch": "main", "commit": "417e55974f6d4d8ad1ba64da70179a67a85e1271" },
   "bamboo.nvim": { "branch": "master", "commit": "1309bc88bffcf1bedc3e84e7fa9004de93da774a" },
