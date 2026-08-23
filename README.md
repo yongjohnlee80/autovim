@@ -1,5 +1,30 @@
 # AutoVim
 
+> ## ❄️ This branch is FROZEN
+>
+> **`omarchy` stopped receiving updates at `v0.3.29`.** It is kept so existing
+> installs keep working — nothing here will break, and you do not have to move
+> today. But no fix or feature from **v0.4.0 onward will ever land on this
+> branch**.
+>
+> **Everything this branch existed for now lives on `main`**, selected at
+> runtime by `lua/utils/platform.lua` instead of by which branch you cloned.
+> Omarchy boxes are detected at startup and follow the system theme, including live re-theming when you switch themes in Hyprland — and the hot-reload actually runs on `main`, which it never did here (it was registered as a pseudo-plugin whose `dir` lazy.nvim had already given to `theme-picker.lua`, so lazy silently dropped it). A single `main` serves every platform, which is why the per-OS
+> branches were retired rather than maintained in parallel.
+>
+> ### Moving to v0.4
+>
+> ```bash
+> ~/.config/nvim/update.sh
+> ```
+>
+> That is all. `update.sh` detects that you are on a retired branch, tells you
+> so, and migrates the checkout to `main` (`git checkout -f -B main
+> origin/main`). Your gitignored files — `lua/custom/`,
+> `.auto-agents-config/`, `.autovim-remote.json` — are untouched.
+>
+> Staying put is a valid choice; you just stay at `v0.3.29`.
+
 An opinionated Neovim config built around AI pair programming (Claude Code + Codex), purpose-built for TypeScript and Go, with Omarchy / macOS / Ubuntu / Fedora variants maintained out of one repo.
 
 ## Installation
@@ -215,13 +240,9 @@ touched by updates. In short: AutoVim *prioritizes* Go/TypeScript/Python, but
 any language LazyVim or the wider Neovim ecosystem supports is one small overlay
 spec away.
 
-> **You're on the `omarchy` branch.** This branch is tuned for Omarchy (Arch + Hyprland) and plugs into Omarchy's system theme so nvim auto-reloads its colorscheme whenever the OS theme changes. If you're not on Omarchy, pick the branch that matches your platform:
->
-> | Branch | For | Theme handling |
-> |---|---|---|
-> | `omarchy` *(this one)* | Omarchy / Arch | `lua/plugins/theme.lua` is symlinked into `~/.config/omarchy/current/theme/neovim.lua`; `omarchy-theme-hotreload.lua` reloads the theme module on the `User LazyReload` autocmd Omarchy fires |
-> | `main` | Ubuntu, Windows, anything non-Omarchy | Static `theme.lua` + `<leader>ut` Snacks theme picker |
-> | `mac-os` | macOS | `main` plus macOS install notes |
+> **You're on the frozen `omarchy` branch.** The branch-per-platform table
+> that used to be here is gone: there is no branch to pick any more. `main`
+> detects Omarchy at runtime. See the freeze notice at the top of this file.
 
 ## Why This Exists
 
