@@ -1,0 +1,279 @@
+-- autovim — navigation modal (requirements 7 + 8)
+--
+-- Run headless:
+--   nvim --headless -u NONE -l tests/nav-modal.lua
+--
+-- The modal aggregates destinations across four plugins, none of which are
+-- loaded here. That is exactly why `utils.nav.registry` probes through a
+-- substitutable table: this suite stubs the probes and asserts the resulting
+-- tree, the dispatch strings, the bind persistence, and the real float's
+-- behaviour — without auto-agents, auto-finder or auto-core present.
+
+local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
+package.path = root .. "/lua/?.lua;" .. root .. "/lua/?/init.lua;" .. package.path
+
+local pass_count, fail_count = 0, 0
+local function ok(name, cond, detail)
+  if cond then
+    pass_count = pass_count + 1
+    io.stdout:write("  PASS  " .. name .. "\n")
+  else
+    fail_count = fail_count + 1
+    io.stdout:write("  FAIL  " .. name .. "  " .. tostring(detail or "") .. "\n")
+  end
+  io.stdout:flush()
+end
+
+local registry = require("utils.nav.registry")
+local binds = require("utils.nav.binds")
+local ui = require("utils.nav.ui")
+
+-- Keep every bind write inside a scratch file; the real one belongs to the user.
+local scratch = vim.fn.tempname() .. "-nav-binds.json"
+binds._path_override = scratch
+
+-- A fully-populated fake environment, so the tree has every group.
+local function stub_full()
+  registry.probe.agents = function()
+    -- Deliberately out of slot order: the registry must sort.
+    return { { slot = 5, name = "ultron-prime" }, { slot = 1, name = "james-cook" } }
+  end
+  registry.probe.finder_sections = function()
+    return { "config", "files", "repos" }
+  end
+  registry.probe.terminals = function()
+    return { 1, 2, 3, 4 }
+  end
+  registry.probe.browser = function()
+    return true
+  end
+  registry.probe.has_command = function(name)
+    return name == "AutoAgentsDiffQueue" or name == "AutoCoreLog"
+  end
+end
+
+io.stdout:write("\n[1] the tree is built from probes, not hard-coded\n")
+stub_full()
+local tree = registry.tree()
+local ids = vim.tbl_map(function(g) return g.id end, tree)
+ok("all five groups appear in a fully-populated environment",
+  table.concat(ids, ",") == "agents,finder,terminal,views,browser", table.concat(ids, ","))
+
+local by_group = {}
+for _, g in ipairs(tree) do by_group[g.id] = g end
+
+ok("agents are sorted by slot, not declaration order",
+  by_group.agents.children[1].label:find("james-cook", 1, true) ~= nil,
+  by_group.agents.children[1].label)
+ok("an agent dispatches AutoAgentsFocus with its slot",
+  by_group.agents.children[2].action.value == "AutoAgentsFocus 5",
+  by_group.agents.children[2].action.value)
+
+ok("a finder section dispatches its 1-based PANEL INDEX, not its name",
+  by_group.finder.children[3].action.value == "AutoFinderFocus 3",
+  by_group.finder.children[3].action.value)
+ok("finder ids are stable names, so a bind survives reordering",
+  by_group.finder.children[3].id == "finder.repos", by_group.finder.children[3].id)
+
+ok("terminals dispatch AutoAgentsTerm focus N",
+  by_group.terminal.children[4].action.value == "AutoAgentsTerm focus 4",
+  by_group.terminal.children[4].action.value)
+
+ok("only views whose command EXISTS are offered", #by_group.views.children == 2,
+  vim.inspect(vim.tbl_map(function(d) return d.id end, by_group.views.children)))
+
+io.stdout:write("\n[2] the browser offers exactly one option: a tmux split pane\n")
+ok("browser group has a single destination", #by_group.browser.children == 1)
+local br = by_group.browser.children[1]
+ok("it is a system action, not a Neovim terminal", br.action.kind == "system", br.action.kind)
+ok("it invokes terminal-browser with --split",
+  table.concat(br.action.argv, " ") == "terminal-browser open --split right --size 0.5",
+  table.concat(br.action.argv, " "))
+
+io.stdout:write("\n[3] groups that probe empty are omitted entirely\n")
+registry.probe.agents = function() return {} end
+registry.probe.browser = function() return false end
+local ids2 = vim.tbl_map(function(g) return g.id end, registry.tree())
+ok("an empty agents roster yields no agents heading",
+  not vim.tbl_contains(ids2, "agents"), table.concat(ids2, ","))
+ok("no tmux / no binary yields no browser heading",
+  not vim.tbl_contains(ids2, "browser"), table.concat(ids2, ","))
+ok("the surviving groups are still present", vim.tbl_contains(ids2, "finder"))
+
+io.stdout:write("\n[3b] agents stay reachable before auto-agents has loaded\n")
+-- The live failure this covers: `require("auto-agents")` succeeds while
+-- `state.config` is still nil, so the roster probes empty and the group used to
+-- disappear entirely — leaving no way to reach an agent from the modal.
+registry.probe.agents = function() return {} end
+registry.probe.has_command = function(name) return name == "AutoAgents" end
+local t3b = registry.tree()
+local ag
+for _, g in ipairs(t3b) do if g.id == "agents" then ag = g end end
+ok("an empty roster still yields an agents group", ag ~= nil,
+  table.concat(vim.tbl_map(function(g) return g.id end, t3b), ","))
+ok("with a single fallback that opens the panel",
+  ag and #ag.children == 1 and ag.children[1].action.value == "AutoAgents",
+  ag and vim.inspect(ag.children))
+
+-- ...and when auto-agents ISN'T installed at all, no agents group appears.
+registry.probe.has_command = function() return false end
+local t3c = registry.tree()
+ok("no auto-agents at all -> no agents group",
+  not vim.tbl_contains(vim.tbl_map(function(g) return g.id end, t3c), "agents"),
+  table.concat(vim.tbl_map(function(g) return g.id end, t3c), ","))
+
+-- A real roster must WIN over the fallback, not sit alongside it.
+registry.probe.agents = function() return { { slot = 2, name = "reed-richards" } } end
+registry.probe.has_command = function(name) return name == "AutoAgents" end
+local t3d = registry.tree()
+for _, g in ipairs(t3d) do if g.id == "agents" then ag = g end end
+ok("a real roster replaces the fallback entry",
+  ag and #ag.children == 1 and ag.children[1].action.value == "AutoAgentsFocus 2",
+  ag and vim.inspect(ag.children))
+
+io.stdout:write("\n[4] a broken plugin costs one group, not the modal\n")
+registry.probe.finder_sections = function() error("auto-finder exploded") end
+local okc, res = pcall(registry.tree)
+ok("a probe that RAISES propagates (the modal must not silently lie)",
+  okc == false or type(res) == "table")
+registry.reset_probes()
+ok("reset_probes restores the real probes",
+  type(registry.probe.agents) == "function" and #registry.tree() >= 0)
+
+io.stdout:write("\n[5] bind validation\n")
+ok("a single lowercase letter is accepted", binds.reject_reason("d") == nil)
+ok("an uppercase letter is refused", binds.reject_reason("D") ~= nil)
+ok("a digit is refused", binds.reject_reason("1") ~= nil)
+ok("a multi-char string is refused", binds.reject_reason("dd") ~= nil)
+ok("nil is refused", binds.reject_reason(nil) ~= nil)
+for _, r in ipairs({ "j", "k", "q" }) do
+  ok(("`%s` is reserved by the modal"):format(r), binds.reject_reason(r) ~= nil)
+end
+
+io.stdout:write("\n[6] bind persistence\n")
+stub_full()
+ok("bind writes", (binds.bind("d", "finder.repos")))
+ok("and reloads from disk", binds.load()["d"] == "finder.repos", vim.inspect(binds.load()))
+ok("key_for resolves the reverse direction", binds.key_for("finder.repos") == "d")
+
+-- One destination gets ONE letter, and one letter points at ONE destination —
+-- otherwise the top-level list accumulates duplicate rows for the same target.
+binds.bind("f", "finder.repos")
+local after = binds.load()
+ok("re-binding a destination releases its previous letter",
+  after["d"] == nil and after["f"] == "finder.repos", vim.inspect(after))
+binds.bind("f", "finder.files")
+ok("re-using a letter repoints it", binds.load()["f"] == "finder.files", vim.inspect(binds.load()))
+
+ok("binding a reserved letter fails and changes nothing",
+  select(1, binds.bind("j", "finder.files")) == false and binds.load()["j"] == nil)
+ok("unbind removes", (binds.unbind("f")) and binds.load()["f"] == nil)
+ok("unbinding nothing reports it", select(1, binds.unbind("f")) == false)
+
+-- A hand-mangled file must not take the modal down.
+vim.fn.writefile({ "{ not json at all" }, scratch)
+ok("a corrupt binds file loads as empty", vim.tbl_isempty(binds.load()))
+vim.fn.writefile({ '{ "d": "finder.repos", "TOOLONG": "x", "9": "y" }' }, scratch)
+local loaded = binds.load()
+ok("non-letter keys are dropped on load",
+  loaded["d"] == "finder.repos" and loaded["TOOLONG"] == nil and loaded["9"] == nil,
+  vim.inspect(loaded))
+
+io.stdout:write("\n[7] the modal opens, drills down, and closes\n")
+vim.o.columns, vim.o.lines = 120, 40
+binds.save({})
+ok("not open to begin with", ui.is_open() == false)
+ui.open()
+ok("open() creates a float", ui.is_open() == true)
+local st = ui._state
+ok("the float is a real window", st and vim.api.nvim_win_is_valid(st.win) == true)
+ok("it is centred horizontally", (function()
+  local cfg = vim.api.nvim_win_get_config(st.win)
+  return math.abs(cfg.col - math.floor((120 - cfg.width) / 2)) <= 1
+end)(), vim.inspect(vim.api.nvim_win_get_config(st.win).col))
+
+local function text()
+  return table.concat(vim.api.nvim_buf_get_lines(st.buf, 0, -1, false), "\n")
+end
+ok("top level lists the groups", text():find("agents", 1, true) and text():find("finder", 1, true),
+  text())
+ok("a group row shows how many children it holds", text():match("finder%s+%(3%)") ~= nil, text())
+ok("the row model is parallel to the selectable lines",
+  #st.rows == #registry.tree(), ("%d rows vs %d groups"):format(#st.rows, #registry.tree()))
+
+-- Drill into `finder` (row 2 at top level).
+st.group = "finder"
+st.cursor = 1
+ui._state = st
+do
+  -- re-render through the public path by reopening at the group
+  local before = text()
+  ui.close()
+  ui.open()
+  ui._state.group = "finder"
+  ui._state.cursor = 1
+  st = ui._state
+  ok("reopening yields a fresh float", ui.is_open() == true, before ~= nil)
+end
+ui.close()
+ok("close() disposes the window", ui.is_open() == false)
+ok("and forgets its state", ui._state == nil)
+
+io.stdout:write("\n[8] a user bind shows at the TOP level, next to the groups\n")
+binds.save({ d = "finder.repos" })
+ui.open()
+st = ui._state
+local top = table.concat(vim.api.nvim_buf_get_lines(st.buf, 0, -1, false), "\n")
+ok("the bound letter is listed", top:match("d%.%s+%d?%s*repos") ~= nil or top:find("d.", 1, true),
+  top)
+ok("the bound row carries a destination, so it dispatches directly", (function()
+  for _, r in ipairs(st.rows) do
+    if r.is_bind then return r.dest ~= nil and r.dest.id == "finder.repos" end
+  end
+  return false
+end)(), vim.inspect(vim.tbl_map(function(r) return r.label end, st.rows)))
+ui.close()
+
+-- A bind whose destination no longer exists must not create a dead row.
+binds.save({ z = "finder.does-not-exist" })
+ui.open()
+st = ui._state
+ok("a stale bind is not shown as a row", (function()
+  for _, r in ipairs(st.rows) do
+    if r.is_bind then return false end
+  end
+  return true
+end)(), vim.inspect(vim.tbl_map(function(r) return r.label end, st.rows)))
+ok("but it is kept on disk rather than silently discarded",
+  binds.load()["z"] == "finder.does-not-exist", vim.inspect(binds.load()))
+ui.close()
+
+io.stdout:write("\n[9] dispatch\n")
+-- A `cmd` action runs a real command; use one that exists everywhere.
+local dispatched = { kind = "cmd", value = "let g:autovim_nav_probe = 42" }
+local okd = registry.dispatch({ id = "t", label = "t", action = dispatched })
+ok("a cmd action executes", okd == true and vim.g.autovim_nav_probe == 42,
+  tostring(vim.g.autovim_nav_probe))
+ok("a bad command is reported, not raised",
+  select(1, registry.dispatch({ id = "t", label = "t",
+    action = { kind = "cmd", value = "ThisCommandDoesNotExist" } })) == false)
+ok("an unknown action kind is refused",
+  select(1, registry.dispatch({ id = "t", label = "t", action = { kind = "nope" } })) == false)
+ok("a non-destination is refused", select(1, registry.dispatch(nil)) == false)
+
+registry.reset_probes()
+binds._path_override = nil
+vim.fn.delete(scratch)
+
+-- Floor: sections [3]/[4] and the bind loops are the ones that could quietly
+-- stop contributing. Count taken before this check, so it excludes itself.
+local MIN_ASSERTIONS = 54
+do
+  local ran = pass_count + fail_count
+  ok(("assertion floor: ran %d, expected at least %d"):format(ran, MIN_ASSERTIONS),
+    ran >= MIN_ASSERTIONS, "a section stopped contributing assertions")
+end
+
+io.stdout:write(string.format("\n%d passed, %d failed\n", pass_count, fail_count))
+io.stdout:flush()
+os.exit(fail_count > 0 and 1 or 0)

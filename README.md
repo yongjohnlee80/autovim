@@ -8,7 +8,9 @@ An opinionated Neovim config built around AI pair programming (Claude Code + Cod
 curl -fsSL https://raw.githubusercontent.com/yongjohnlee80/autovim/main/install.sh | bash
 ```
 
-The installer detects your OS (macOS, Arch, Debian / Ubuntu, Fedora), auto-picks the matching branch (macOS → `mac-os`, Arch + Omarchy → `omarchy`, everything else → `main`), installs baseline dependencies via your native package manager, backs up any existing `~/.config/nvim` to a timestamped `*.bak-…` directory, clones the repo, and runs a headless `Lazy sync` so your first launch is already warmed up.
+The installer detects your OS (macOS, Arch, Debian / Ubuntu, Fedora), installs baseline dependencies via your native package manager, backs up any existing `~/.config/nvim` to a timestamped `*.bak-…` directory, clones the repo, and runs a headless `Lazy sync` so your first launch is already warmed up.
+
+**One branch, every platform.** AutoVim used to ship a branch per environment (`main`, `mac-os`, `omarchy`) and install whichever matched. All of that now lives on `main` and is selected at runtime by [`lua/utils/platform.lua`](lua/utils/platform.lua), so macOS still gets its Mason-free `gopls` and Omarchy boxes still follow the system theme — from the same commit everyone else runs. OS detection in `install.sh` survives only to pick the right *system packages*, which genuinely differ per distro. See [Platform Behaviour](#platform-behaviour).
 
 Override the defaults with env vars:
 
@@ -17,7 +19,7 @@ AUTOVIM_BRANCH=main AUTOVIM_SKIP_DEPS=1 \
   curl -fsSL https://raw.githubusercontent.com/yongjohnlee80/autovim/main/install.sh | bash
 ```
 
-`AUTOVIM_BRANCH` forces a specific branch, `AUTOVIM_REPO` installs from a fork, `AUTOVIM_SKIP_DEPS=1` skips the system-package step if you've already installed neovim (≥0.10), ripgrep, fd, fzf, git, gcc, and curl yourself.
+`AUTOVIM_BRANCH` tracks a non-default branch (forks / testing), `AUTOVIM_REPO` installs from a fork, `AUTOVIM_SKIP_DEPS=1` skips the system-package step if you've already installed neovim (≥0.10), ripgrep, fd, fzf, git, gcc, and curl yourself.
 
 ### Upgrading to v0.3.0 — run `:Lazy update` first
 
@@ -104,7 +106,7 @@ Two paths, same `update.sh` under the hood:
 
 `update.sh` does two things in order against `~/.config/nvim`:
 
-1. **Hard-resets `.git/` to `origin/<branch>`.** `git fetch origin <branch> && git reset --hard origin/<branch>` brings the local branch ref AND the working tree's tracked files to origin's tip in one step — no more silently-lagging `.git/` after upstream rebases. Skipped when `.git/` is absent. **This is destructive against uncommitted edits to tracked files and against any local commits.** Customizations live in `lua/custom/` (gitignored, never touched); commits live in your fork's remote.
+1. **Hard-resets `.git/` to `origin/main`.** `git fetch origin main && git checkout -f -B main origin/main` brings the local branch ref AND the working tree's tracked files to origin's tip in one step. If your checkout still tracks the retired `mac-os` or `omarchy` branch, this is also the **migration**: it moves HEAD onto `main` and says so. A bare `reset --hard` would have repointed the old branch ref at `main`'s content and left you on a branch name that upstream no longer updates — no more silently-lagging `.git/` after upstream rebases. Skipped when `.git/` is absent. **This is destructive against uncommitted edits to tracked files and against any local commits.** Customizations live in `lua/custom/` (gitignored, never touched); commits live in your fork's remote.
 2. **Rsyncs the temp clone** onto `~/.config/nvim`. For installs with `.git/` this is a no-op for tracked files (hard reset already produced the same bytes); for raw-tarball / `.git/`-less installs it's the sole update mechanism. `lua/custom/` and every other gitignored path are preserved either way — they're never in the temp clone.
 
 After overlay it runs `Lazy! sync` so the bumped `lazy-lock.json`
@@ -215,6 +217,32 @@ touched by updates. In short: AutoVim *prioritizes* Go/TypeScript/Python, but
 any language LazyVim or the wider Neovim ecosystem supports is one small overlay
 spec away.
 
+## Platform Behaviour
+
+Everything platform-specific is a runtime check on `main`, not a branch. `lua/utils/platform.lua` is the single place that decides what you are running on; `tests/smoke.lua` asserts both directions of every gate below, so a broken gate fails the suite instead of silently shipping macOS behaviour to Linux.
+
+| Platform | What changes | Where |
+|---|---|---|
+| **macOS** | `gopls` is taken from your Go toolchain instead of Mason, and a startup warning tells you how to install it if it is missing | `lua/plugins/gopls.lua` |
+| **Omarchy** (Arch + Hyprland) | The colorscheme follows Omarchy's system theme, and tracks it live when you switch themes — no restart | `lua/plugins/theme.lua`, `lua/plugins/omarchy-theme-hotreload.lua` |
+| **Everything else** | Defaults to `catppuccin-mocha` | `lua/utils/theme_resolve.lua` |
+
+### Theme selection
+
+The rule, in one line: **Omarchy follows the system theme; every other platform defaults to `catppuccin-mocha`; on both, a theme you pick yourself wins.**
+
+Picking a theme with `<leader>ut` persists it, so it survives restarts. On Omarchy there is one extra subtlety worth knowing, because Omarchy applies themes *itself*:
+
+- Pick a theme in AutoVim and it overrides the system theme — as you would expect.
+- Change the **system** theme afterwards (Hyprland shortcut / `omarchy-theme-set`) and the system wins again, dropping your override. Otherwise a single AutoVim pick would silently disable Omarchy theme switching forever.
+- `:AutovimThemeFollowSystem` forgets the override immediately and goes back to whatever the system says.
+
+Internally the saved pick is stamped with the Omarchy theme that was active when you made it; a stamp that no longer matches is what tells AutoVim the system moved on. (This is also why the old `omarchy` branch had *no* theme persistence at all — without the stamp, Omarchy's own theme application is indistinguishable from a user's choice, and the cache pins you to it.)
+
+### Dependency pinning
+
+`lazy-lock.json` is **committed**, so a fresh install gets the exact plugin commits this release was tested with rather than whatever upstream happens to be that day. Regenerate it as part of cutting a release — a caret-pinned plugin with no lock entry is invisible to a lock-driven install, which is how `autodb` and `auto-run.nvim` came to be declared-but-never-installed on a fresh macOS copy. `tests/smoke.lua` section `[12]` now fails on exactly that mismatch.
+
 ## Why This Exists
 
 Some people meditate. Some do yoga. I open Neovim, fire up Claude, and write Go and TypeScript until the world makes sense again. This is my happy place -- a terminal where keystrokes are cheap, feedback loops are tight, and the AI pair programmer never judges my variable names.
@@ -293,10 +321,12 @@ A typical session opens `:AutoAgents` (or `<F5>`) and lands on the admin slot. F
 
 One external binary this config relies on that doesn't install itself through Lazy or Mason:
 
+- **`gopls`** — the Go language server. On **macOS** AutoVim deliberately keeps this outside Mason, because new `gopls` releases can briefly outrun Mason's registry / Go proxy cache. If Go is installed but `gopls` is not on `$PATH`, AutoVim shows a startup warning with the install command. Linux keeps using Mason-managed `gopls`.
 - **`lazysql`** — the TUI SQL client wired to `<C-q>`. The Neovim side is just a `snacks.terminal` toggle; the binary has to be on your `$PATH`.
 
 | Tool | Arch | macOS |
 |---|---|---|
+| `gopls` | managed by Mason | `go install golang.org/x/tools/gopls@latest` |
 | `lazysql` | `yay -S lazysql-bin` (AUR) | `go install github.com/jorgerojas26/lazysql@latest` |
 
 Connection setup for `lazysql` lives in [SQL Without Leaving Neovim](#sql-without-leaving-neovim).

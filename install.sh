@@ -4,13 +4,19 @@
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/yongjohnlee80/autovim/main/install.sh | bash
 #
-# Detects your OS + Omarchy presence, picks the matching branch,
-# installs baseline system packages, backs up any existing ~/.config/nvim,
-# clones the repo, and runs a headless `Lazy sync` so first launch is
-# already warmed up.
+# Detects your OS, installs baseline system packages, backs up any existing
+# ~/.config/nvim, clones the repo, and runs a headless `Lazy sync` so first
+# launch is already warmed up.
+#
+# SINGLE BRANCH. AutoVim used to ship `main`, `mac-os`, and `omarchy` branches
+# and pick one by OS. Every OS-specific behaviour now lives on `main` behind a
+# runtime check (`lua/utils/platform.lua`), so there is nothing to pick: macOS
+# gets its gopls override and Omarchy boxes follow the system theme from the
+# same commit. OS detection below is still used to install the right SYSTEM
+# PACKAGES — that part is genuinely per-distro.
 #
 # Overrides (set as env vars before piping to bash):
-#   AUTOVIM_BRANCH=<name>    force a specific branch (main | mac-os | omarchy)
+#   AUTOVIM_BRANCH=<name>    track a non-default branch (forks / testing)
 #   AUTOVIM_REPO=<url>       fork URL (default: upstream)
 #   AUTOVIM_SKIP_DEPS=1      skip system-package install (you handle deps manually)
 
@@ -44,21 +50,11 @@ detect_os() {
   esac
 }
 
+# AutoVim installs `main` on every platform (see the header). Kept as a
+# function so `AUTOVIM_BRANCH` still works for forks and for testing a branch,
+# and so the call site in main() does not have to change.
 pick_branch() {
-  local os="$1"
-  case "$os" in
-    macos) echo "mac-os" ;;
-    arch)
-      # Omarchy places its config + binary here. Fall back to `main` on
-      # plain Arch installs.
-      if [[ -d "$HOME/.config/omarchy" ]] || command -v omarchy >/dev/null 2>&1; then
-        echo "omarchy"
-      else
-        echo "main"
-      fi
-      ;;
-    *) echo "main" ;;
-  esac
+  echo "main"
 }
 
 # Compare two semver-ish versions. Returns 0 if $1 >= $2, 1 otherwise.
@@ -193,7 +189,7 @@ bootstrap_plugins() {
 main() {
   local os branch
   os="$(detect_os)"
-  branch="${AUTOVIM_BRANCH:-$(pick_branch "$os")}"
+  branch="${AUTOVIM_BRANCH:-$(pick_branch)}"
 
   log "AutoVim installer"
   log "  OS:     $os"
@@ -223,7 +219,7 @@ Branch: $branch
 Config: $NVIM_CONFIG
 
 Re-run with different options:
-  AUTOVIM_BRANCH=<name>   Force a branch (main | mac-os | omarchy)
+  AUTOVIM_BRANCH=<name>   Track a non-default branch (forks / testing)
   AUTOVIM_REPO=<url>      Install from a fork
   AUTOVIM_SKIP_DEPS=1     Skip system package install
 

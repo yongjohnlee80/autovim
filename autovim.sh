@@ -3,7 +3,7 @@
 #
 # A workspace is a named (session, working-directory) pair persisted in
 # ~/.config/autovim/workspaces.tsv. Starting a workspace creates (or
-# reattaches to) a tmux session in that directory with `nvim .` running
+# reattaches to) a tmux session in that directory with `nvim` running
 # in the first pane. The session survives terminal-app shutdowns and
 # network drops — reattach with `autovim <name>` to resume.
 #
@@ -245,7 +245,19 @@ cmd_attach() {
 	[[ -d "$dir" ]] || die "workspace directory missing: $dir (edit with: autovim edit $name)"
 
 	tmux new-session -d -s "$name" -c "$dir"
-	tmux send-keys -t "$name" 'nvim .' C-m
+	# Plain `nvim`, NOT `nvim .` — deliberately.
+	#
+	# The `-c "$dir"` above already starts the pane in the workspace directory,
+	# so the trailing `.` added nothing to the working directory; all it did was
+	# hand nvim a DIRECTORY argument, which auto-finder treats as an explicit
+	# request to hijack and open the finder panel. That panel then takes width
+	# away from the dashboard, which is what pushed the AutoVim logo off-centre
+	# on every single workspace attach.
+	#
+	# Bare `nvim` lands on a centred dashboard; `<leader>fe` (or `:AutoFinder`)
+	# opens the panel when it is actually wanted. Anyone typing `nvim .` by hand
+	# still gets the hijack — that path is unchanged and intentional.
+	tmux send-keys -t "$name" 'nvim' C-m
 	attach_or_switch "$name"
 }
 

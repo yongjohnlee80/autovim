@@ -6,7 +6,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/yongjohnlee80/autovim/main/update.sh | bash
 #
 # Overrides (env vars):
-#   AUTOVIM_BRANCH=<name>           force a specific branch (main | mac-os | omarchy)
+#   AUTOVIM_BRANCH=<name>           track a non-default branch (forks / testing)
 #   AUTOVIM_REPO=<url>              fork URL (default: upstream)
 #   AUTOVIM_NO_LAZY_SYNC=1          skip the post-update `Lazy! sync`
 #   AUTOVIM_NO_FAMILY_UPDATE=1      skip the `Lazy update <family>` step
@@ -67,35 +67,45 @@ log()  { printf '\033[1;36m==>\033[0m %s\n' "$*" >&2; }
 warn() { printf '\033[1;33m[warn]\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[1;31m[err]\033[0m %s\n' "$*" >&2; exit 1; }
 
-# Derive the active branch the same way install.sh did. If the user
-# has a tracked `.git/` we trust THAT branch over our guess; otherwise
-# we pick by OS, matching install.sh's behavior.
+# AutoVim is a SINGLE branch now. `mac-os` and `omarchy` were retired once
+# every OS-specific behaviour moved onto `main` behind a runtime check in
+# `lua/utils/platform.lua` — macOS still gets its Mason-free gopls, Omarchy
+# still follows the system theme, both from the same commit.
+#
+# This is the migration path for the installs that are still ON one of those
+# branches. We deliberately do NOT trust the local checkout's current branch
+# any more (the previous version did): trusting it is exactly what would pin an
+# existing Omarchy or macOS user to a branch that no longer receives commits.
+# `AUTOVIM_BRANCH` remains the escape hatch for forks.
+LEGACY_BRANCHES=("mac-os" "omarchy")
+
 detect_branch() {
-  if [[ -d "$NVIM_CONFIG/.git" ]] && git -C "$NVIM_CONFIG" rev-parse --abbrev-ref HEAD >/dev/null 2>&1; then
-    git -C "$NVIM_CONFIG" rev-parse --abbrev-ref HEAD
-    return
-  fi
-  case "$(uname -s)" in
-    Darwin) echo "mac-os" ;;
-    Linux)
-      if [[ -r /etc/os-release ]]; then
-        . /etc/os-release
-        case "${ID:-}" in
-          arch|manjaro|endeavouros)
-            if [[ -d "$HOME/.config/omarchy" ]] || command -v omarchy >/dev/null 2>&1; then
-              echo "omarchy"
-            else
-              echo "main"
-            fi
-            ;;
-          *) echo "main" ;;
-        esac
-      else
-        echo "main"
-      fi
-      ;;
-    *) echo "main" ;;
-  esac
+  echo "${AUTOVIM_BRANCH:-main}"
+}
+
+# The branch the local checkout is on right now, or empty when there is no
+# tracked `.git/` (rsync-overlay installs).
+current_local_branch() {
+  [[ -d "$NVIM_CONFIG/.git" ]] || return 0
+  git -C "$NVIM_CONFIG" rev-parse --abbrev-ref HEAD 2>/dev/null || true
+}
+
+is_legacy_branch() {
+  local candidate="$1" legacy
+  for legacy in "${LEGACY_BRANCHES[@]}"; do
+    [[ "$candidate" == "$legacy" ]] && return 0
+  done
+  return 1
+}
+
+# Tell the user what is about to happen to their branch, loudly. Silently
+# moving someone off the branch they installed is the kind of surprise that
+# reads as a broken update.
+announce_branch_migration() {
+  local from="$1" to="$2"
+  warn "This install tracks the retired '$from' branch; migrating it to '$to'."
+  warn "  Every '$from' behaviour now lives on '$to' and is selected at runtime."
+  warn "  Your gitignored files (lua/custom/, .auto-agents-config/, ...) are untouched."
 }
 
 # Idempotent sanity-check that mirrors install.sh's `scaffold_custom`.
@@ -206,11 +216,33 @@ hard_reset_to_origin() {
     log "No .git/ in $NVIM_CONFIG — skipping hard reset; rsync will handle the overlay"
     return
   fi
-  log "Hard-resetting $NVIM_CONFIG/.git to origin/$target_branch"
+  local local_branch
+  local_branch="$(current_local_branch)"
+
+  log "Fetching origin/$target_branch"
   git -C "$NVIM_CONFIG" fetch --quiet origin "$target_branch" \
     || die "git fetch origin $target_branch failed in $NVIM_CONFIG"
-  git -C "$NVIM_CONFIG" reset --hard --quiet "origin/$target_branch" \
-    || die "git reset --hard origin/$target_branch failed in $NVIM_CONFIG"
+
+  if [[ -n "$local_branch" && "$local_branch" != "$target_branch" ]]; then
+    if is_legacy_branch "$local_branch"; then
+      announce_branch_migration "$local_branch" "$target_branch"
+    else
+      warn "Local branch '$local_branch' differs from '$target_branch'; switching."
+    fi
+  fi
+
+  # `checkout -f -B` in ONE step: create-or-reset the local branch to the
+  # fetched tip AND move HEAD onto it. A bare `reset --hard origin/main` while
+  # HEAD sits on `omarchy` would repoint the *omarchy* ref at main's content and
+  # leave the user on a branch name that no longer exists upstream — the update
+  # would look like it worked while still tracking a dead branch on the next run.
+  #
+  # `-f` discards local modifications to TRACKED files, which is AutoVim's
+  # documented contract (user-owned changes belong in the gitignored
+  # `lua/custom/`). Forks wanting other semantics set AUTOVIM_REPO.
+  log "Checking out $target_branch at origin/$target_branch"
+  git -C "$NVIM_CONFIG" checkout -f -B "$target_branch" "origin/$target_branch" --quiet \
+    || die "git checkout -B $target_branch origin/$target_branch failed in $NVIM_CONFIG"
 }
 
 overlay_tracked_tree() {
