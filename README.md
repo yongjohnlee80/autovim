@@ -1,5 +1,30 @@
 # AutoVim
 
+> ## ❄️ This branch is FROZEN
+>
+> **`mac-os` stopped receiving updates at `v0.3.29`.** It is kept so existing
+> installs keep working — nothing here will break, and you do not have to move
+> today. But no fix or feature from **v0.4.0 onward will ever land on this
+> branch**.
+>
+> **Everything this branch existed for now lives on `main`**, selected at
+> runtime by `lua/utils/platform.lua` instead of by which branch you cloned.
+> macOS is detected at startup and still takes `gopls` from your Go toolchain rather than Mason, with the same startup warning when it is missing. A single `main` serves every platform, which is why the per-OS
+> branches were retired rather than maintained in parallel.
+>
+> ### Moving to v0.4
+>
+> ```bash
+> ~/.config/nvim/update.sh
+> ```
+>
+> That is all. `update.sh` detects that you are on a retired branch, tells you
+> so, and migrates the checkout to `main` (`git checkout -f -B main
+> origin/main`). Your gitignored files — `lua/custom/`,
+> `.auto-agents-config/`, `.autovim-remote.json` — are untouched.
+>
+> Staying put is a valid choice; you just stay at `v0.3.29`.
+
 An opinionated Neovim config built around AI pair programming (Claude Code + Codex), purpose-built for TypeScript and Go, with Omarchy / macOS / Ubuntu / Fedora variants maintained out of one repo.
 
 ## Installation
