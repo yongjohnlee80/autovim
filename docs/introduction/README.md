@@ -177,9 +177,9 @@ AutoVim includes several adjacent tools that fit the same workspace model:
 | Go debugging | `<leader>dt` debug test, `<leader>dm` debug main, `<leader>dD` doctor, `<leader>dN` / `<leader>dM` scaffold launch configs. |
 | HTTP collections | `<leader>Rs` scaffold `.rest/`, `<leader>Rn` new scratch request, `<leader>Rr` run, `<leader>Rl` replay, `<leader>Ra` run all. |
 | Markdown panes | `<leader>m1`, `<leader>m2`, `<leader>m3`, `<leader>ma`, `<leader>ms`, `<leader>md` open or restore rendered docs. |
-| SQL terminal | `<C-q>` toggles `lazysql` in a persistent float. |
+| SQL | `<leader>D*` drives [autodb](https://github.com/yongjohnlee80/autodb), with the explorer in auto-finder's **dbase** section; it also runs standalone as a TUI. `<C-q>`/`lazysql` was retired in v0.3.10 and `nvim-dbee` in v0.4.0. |
 | Playground terminals | `F1` through `F4` keep shared shells alive across worktree changes. |
-| Theme integration | The `omarchy` branch follows the active Omarchy theme and hot-reloads Neovim colors. |
+| Theme integration | On Omarchy the colorscheme follows the active system theme and hot-reloads, selected at runtime by `lua/utils/platform.lua` — the same commit everyone else runs. The per-OS `omarchy` / `mac-os` branches are frozen at v0.3.29. |
 
 ![Remote sync](assets/images/remote-sync.png)
 
