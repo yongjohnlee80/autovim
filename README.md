@@ -72,6 +72,64 @@ A typical day: `autovim foo` in the morning attaches the long-lived tmux session
 
 The workspace registry lives at `~/.config/autovim/workspaces.tsv` — one tab-separated `<name>\t<dir>` line per workspace. Edit by hand or via `autovim edit`. Requires `tmux` (installed by `install.sh`); if `~/.local/bin` isn't on your `$PATH`, `install.sh` prints the `export PATH=...` line to add to your shell rc.
 
+### When the session *doesn't* survive
+
+The durability above has **one real exception**, and it is worth knowing before
+you rely on it: the session survives the *client* dying — terminal, SSH, window.
+It does **not** survive the *machine* running out of memory.
+
+Every tmux pane runs in its own transient `tmux-spawn-*.scope`, and systemd's
+user-manager default is `DefaultOOMPolicy=stop`. So when the kernel OOM-kills
+**any one process** in a pane — a compile, `gopls`, a test binary — systemd tears
+down the **whole scope**: nvim, the agent slots, everything. The session is gone,
+along with exactly the state the paragraph above promises.
+
+It bites hardest in the workload AutoVim is built for: several workspaces each
+running compiles, an LSP over a monorepo, debug sessions, test suites and an
+agent fleet. This is stock systemd behaviour rather than an AutoVim bug, but
+AutoVim is what makes the promise, so it carries the caveat.
+
+**The one-time hardening** (Linux/systemd only — see the note below):
+
+```ini
+# ~/.config/systemd/user.conf.d/oom.conf
+[Manager]
+DefaultOOMPolicy=continue
+```
+
+then `systemctl --user daemon-reexec`. An OOM-killed child now dies alone
+instead of taking the session with it. The trade-off is stated plainly: this
+changes the default for **all** your user units, which is the right call for
+interactive sessions and worth a thought if you run services under the same
+user manager.
+
+**It covers sessions that are already running.** The natural assumption is "new
+panes only", and that is wrong: transient scopes never set `OOMPolicy`
+themselves, so systemd resolves it from the manager default at OOM-event time.
+Live scopes flip without being recreated — no need to restart your workspaces.
+
+Verify:
+
+```bash
+systemctl --user show -p DefaultOOMPolicy                  # -> continue
+systemctl --user show <tmux-spawn-*.scope> -p OOMPolicy    # -> continue
+```
+
+Two adjacent knobs, if you are still getting killed:
+
+- **Real swap.** zram-only swap gives no true spillover, so a disk swapfile
+  buys headroom that compression cannot.
+- **`DefaultOOMScoreAdjust=0`** stops tmux/nvim from being *preferred* victims.
+  The trade-off is that it redirects kills toward your other applications.
+
+`autovim mem` (above) is the affordance for spotting the pressure before the
+kill — it reports RSS per live session, which is usually where the creep shows
+up first.
+
+> **macOS:** none of this applies. Transient scopes, `DefaultOOMPolicy` and
+> cgroup teardown are systemd mechanisms; Darwin has no equivalent, and the
+> tmux session there is not exposed to this failure mode.
+
 ## Customizing Without Losing It on Update
 
 AutoVim ships with a **user-owned override layer** at `lua/custom/`,
@@ -134,6 +192,45 @@ it. The first `update.sh` run lays the new script down via rsync;
 the second run is the v0.3.14 script, which then hard-resets `.git/`
 to match origin. After that single bootstrap, future updates are
 single-shot.
+
+### Uninstalling
+
+`uninstall.sh` removes AutoVim **and** Neovim. It is deliberately loud about
+what it is going to do: it prints an inventory first, then asks about each piece
+of user data it found, one at a time. A bare Enter **keeps** the item.
+
+```bash
+~/.config/nvim/uninstall.sh              # inventory, then ask about your data
+~/.config/nvim/uninstall.sh --dry-run    # inventory only, remove nothing
+~/.config/nvim/uninstall.sh --keep-data  # keep every user-data item, no prompts
+~/.config/nvim/uninstall.sh --purge      # remove every user-data item, no prompts
+~/.config/nvim/uninstall.sh --keep-neovim  # remove AutoVim, keep the Neovim package
+```
+
+Start with `--dry-run` if you want to see the blast radius without committing to
+anything. Even without it, nothing is touched until you type `yes` at the final
+confirmation — `y` is not enough.
+
+Four things it asks about individually, because none of them is AutoVim's to
+assume:
+
+| | |
+|---|---|
+| `.auto-agents-config/` | agent TOMLs, mailboxes, and the knowledge base |
+| `lua/custom/` | your own gitignored override layer |
+| `~/.config/autovim/` | the workspace registry (`workspaces.tsv`) |
+| `~/.local/share/autodb` | database connections, notes, script history |
+
+The knowledge base is a git repo, and uncommitted work in it exists nowhere
+else — so its **git status is shown before you decide**, rather than after.
+
+The first two live *inside* `~/.config/nvim`, so choosing to keep them means
+they are moved out to a timestamped `~/autovim-rescue-<date>-<time>/` before the
+config directory is deleted; the script prints each path as it goes. Choosing to
+remove them deletes them with the config. The last two live outside it, so
+keeping them simply leaves them alone.
+
+Your project directories, worktrees and git repos are never touched.
 
 ## Adding Other Languages
 
@@ -232,7 +329,7 @@ Everything platform-specific is a runtime check on `main`, not a branch. `lua/ut
 | Platform | What changes | Where |
 |---|---|---|
 | **macOS** | `gopls` is taken from your Go toolchain instead of Mason, and a startup warning tells you how to install it if it is missing | `lua/plugins/gopls.lua` |
-| **Omarchy** (Arch + Hyprland) | The colorscheme follows Omarchy's system theme, and tracks it live when you switch themes — no restart | `lua/plugins/theme.lua`, `lua/plugins/omarchy-theme-hotreload.lua` |
+| **Omarchy** (Arch + Hyprland) | The colorscheme follows Omarchy's system theme, and tracks it live when you switch themes — no restart | `lua/plugins/theme.lua`, `lua/utils/theme_resolve.lua`, and the `OmarchyThemeHotreload` autocmd in `lua/config/autocmds.lua` |
 | **Everything else** | Defaults to `catppuccin-mocha` | `lua/utils/theme_resolve.lua` |
 
 ### Theme selection
