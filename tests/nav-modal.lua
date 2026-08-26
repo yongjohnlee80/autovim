@@ -61,6 +61,10 @@ local function stub_full()
   registry.probe.browser = function()
     return true
   end
+  registry.probe.resume_diff = function()
+    -- auto-finder has opened a diff this session and can reopen it.
+    return true
+  end
   registry.probe.has_command = function(name)
     -- `help` is a built-in Ex command (`exists(":help") == 2`), so a real
     -- session always offers it; the stub has to agree or the views group here
@@ -73,8 +77,9 @@ io.stdout:write("\n[1] the tree is built from probes, not hard-coded\n")
 stub_full()
 local tree = registry.tree()
 local ids = vim.tbl_map(function(g) return g.id end, tree)
-ok("all five groups appear in a fully-populated environment",
-  table.concat(ids, ",") == "agents,finder,terminal,views,browser", table.concat(ids, ","))
+ok("all six groups appear in a fully-populated environment",
+  table.concat(ids, ",") == "agents,finder,review,terminal,views,browser",
+  table.concat(ids, ","))
 
 local by_group = {}
 for _, g in ipairs(tree) do by_group[g.id] = g end
@@ -566,6 +571,41 @@ do
   local ran = pass_count + fail_count
   ok(("assertion floor: ran %d, expected at least %d"):format(ran, MIN_ASSERTIONS),
     ran >= MIN_ASSERTIONS, "a section stopped contributing assertions")
+end
+
+io.stdout:write("\n[9] the review group offers resume, and only when there is one\n")
+do
+  -- Earlier sections mutate the shared probe table; re-establish the two this
+  -- section depends on so it does not read a tree an earlier test left behind.
+  registry.probe.finder_sections = function() return { "config", "files", "repos" } end
+  registry.probe.resume_diff = function() return true end
+  local rg
+  for _, g in ipairs(registry.tree()) do if g.id == "review" then rg = g end end
+  ok("*** a review group appears when a diff is resumable ***", rg ~= nil,
+    table.concat(vim.tbl_map(function(g) return g.id end, registry.tree()), ","))
+  ok("*** it sits right after finder ***", (function()
+    local ids = vim.tbl_map(function(g) return g.id end, registry.tree())
+    local fi, ri
+    for i, id in ipairs(ids) do
+      if id == "finder" then fi = i end
+      if id == "review" then ri = i end
+    end
+    return fi and ri and ri == fi + 1
+  end)())
+  ok("*** resume dispatches :AutoFinderResumeDiff ***",
+    rg and rg.children[1].action.kind == "cmd"
+      and rg.children[1].action.value == "AutoFinderResumeDiff",
+    rg and vim.inspect(rg.children[1].action))
+  ok("its label names the action", rg and rg.children[1].label == "resume diff review",
+    rg and rg.children[1].label)
+
+  -- Nothing resumable -> no heading. An empty "review" row is worse than none,
+  -- and offering resume when there is nothing to resume is a dead key.
+  registry.probe.resume_diff = function() return false end
+  local ids3 = vim.tbl_map(function(g) return g.id end, registry.tree())
+  ok("*** no resumable diff -> no review group ***", not vim.tbl_contains(ids3, "review"),
+    table.concat(ids3, ","))
+  registry.probe.resume_diff = function() return true end
 end
 
 io.stdout:write(string.format("\n%d passed, %d failed\n", pass_count, fail_count))

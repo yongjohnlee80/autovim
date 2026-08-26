@@ -95,6 +95,19 @@ local DEFAULT_PROBES = {
     return { 1, 2, 3, 4 }
   end,
 
+  -- Whether the repos diff view can be reopened where it was last closed. True
+  -- only after auto-finder has opened a diff this session (`o` on a commit), so
+  -- "resume diff review" is offered exactly when it means something. Safe when
+  -- auto-finder is absent: the require fails and this returns false.
+  resume_diff = function()
+    local ok, tree = pcall(require, "auto-finder.views.repos.tree")
+    if not ok or type(tree) ~= "table" or type(tree.can_resume) ~= "function" then
+      return false
+    end
+    local okc, yes = pcall(tree.can_resume)
+    return okc and yes == true
+  end,
+
   -- Requirement: ONE browser option — open in a tmux split pane.
   --
   -- terminal-browser paints via the kitty graphics protocol, which Neovim's
@@ -213,6 +226,25 @@ function M.tree()
       }
     end
     groups[#groups + 1] = { id = "finder", label = "finder", children = children }
+  end
+
+  -- The diff view is resumable (requirement 6): one entry, present only when
+  -- there is a diff to resume, so it is never a dead key. Its own group rather
+  -- than a row under `views` so it never renumbers the static view entries as
+  -- it appears and disappears.
+  if M.probe.resume_diff() then
+    groups[#groups + 1] = {
+      id = "review",
+      label = "review",
+      children = {
+        {
+          id = "review.resume-diff",
+          label = "resume diff review",
+          detail = "reopen the last repos diff where you left it",
+          action = { kind = "cmd", value = "AutoFinderResumeDiff" },
+        },
+      },
+    }
   end
 
   local terms = M.probe.terminals()

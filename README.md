@@ -659,7 +659,10 @@ Groups are **discovered, not hard-coded**, so the modal shows what your machine
 actually has: your configured agent slots by name, whichever auto-finder
 sections you enabled, the four playground terminals, the diff queue / dock /
 logs, and the browser. A group with nothing in it is omitted rather than shown
-empty.
+empty — including a **`review`** group that appears once you have opened a repos
+diff (`o` on a commit): its one entry, *resume diff review*, reopens that diff on
+the same file and line, so leaving it to check a file is a one-gesture round
+trip.
 
 ### Two keystrokes to anywhere
 
