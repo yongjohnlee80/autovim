@@ -64,8 +64,10 @@
 return {
   {
     "yongjohnlee80/autodb",
-    -- Caret pin: tracks v0.1.x, refuses v0.2+ unprompted.
-    version = "^0.2.0",
+    -- Caret pin: tracks v0.3.x, refuses v0.4+ unprompted. v0.3.0 moved the
+    -- dbase drawer into autodb (`autodb.views.drawer`), which auto-finder
+    -- v0.4.x probes for; on ^0.2.0 the panel fell back to "not installed".
+    version = "^0.3.0",
     build = "make build",
     dependencies = { "auto-core.nvim" },
     cmd = { "AutodbRun", "AutodbConnection", "AutodbHistory", "AutodbLogin",
