@@ -70,6 +70,14 @@ return {
         function() require("auto-agents").send_buffer_picker() end,
         desc = "Send current buffer to an agent",
       },
+      -- ADR-0082: forward selected text (visual mode) or clipboard (normal mode)
+      -- to a live agent slot with snippet confirmation prompt and mailbox delivery.
+      {
+        "<leader>af",
+        function() require("auto-agents").forward_text_picker() end,
+        mode = { "n", "x" },
+        desc = "Forward selected text / clipboard to an agent",
+      },
       { "<F5>", "<cmd>AutoAgents<cr>", mode = { "n", "t" }, desc = "Toggle auto-agents panel" },
       -- `<F6>` is NOT here any more: it now opens the central navigation modal,
       -- bound in `lua/config/keymaps.lua` beside `<C-g>`. The dock reached only
