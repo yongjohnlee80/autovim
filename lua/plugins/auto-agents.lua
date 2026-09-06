@@ -36,7 +36,13 @@ return {
       require("auto-agents").setup(o)
     end,
     keys = {
-      { "<leader>a", nil, desc = "AI / Auto Agents" },
+      -- The group prefix, declared for BOTH modes it has bindings in.
+      -- lazy.nvim defaults `mode` to normal, so a bare entry left the prefix
+      -- with no scaffolding in visual mode — and `<leader>af` is the one entry
+      -- under it that binds visual. which-key then had no group to show there,
+      -- so the prefix read as unmapped even though `af` was live behind it
+      -- (Johno, 2026-09-07).
+      { "<leader>a", nil, mode = { "n", "x" }, desc = "AI / Auto Agents" },
       { "<leader>ac", "<cmd>AutoAgents<cr>", desc = "Toggle auto-agents (last-focused slot)" },
       { "<leader>ad", "<cmd>AutoAgentsDiffQueue<cr>", desc = "Toggle unified diff queue" },
       { "<F11>", "<cmd>AutoAgentsDiffQueue<cr>", mode = { "n", "t" }, desc = "Toggle unified diff queue" },
