@@ -207,14 +207,17 @@ do
     (function()
       local loaded = package.loaded["utils.leader_guard"]
       if loaded == nil then return "not loaded" end
-      local rtp = vim.api.nvim_list_runtime_paths()
-      for i, p in ipairs(rtp) do
-        if p:find("nvim%-plugins/autovim") then return p end
-      end
-      return "loaded but checkout not on rtp"
+      local info = debug.getinfo(loaded.setup, "S")
+      return info and info.source or "no source"
     end)()
   ]])
-  ok("child resolves utils.leader_guard from THIS checkout (first rtp entry)", guard_path == root, guard_path)
+  ok(
+    "child resolves utils.leader_guard from THIS checkout",
+    type(guard_path) == "string"
+      and guard_path:sub(1, 1) == "@"
+      and guard_path:sub(2) == root .. "/lua/utils/leader_guard.lua",
+    tostring(guard_path) .. " vs root " .. root
+  )
   assert_child_sandbox(lua)
   ok("child XDG roots inside sandbox", true)
 end
