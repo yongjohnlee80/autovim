@@ -75,23 +75,31 @@ end
 ---The validation is the point. A directory can carry a `.git` entry and not be
 ---a repository: this workspace has an empty `.git/` at its root, so
 ---`vim.fs.find(".git")`, `isdirectory()` and every other existence check call
----it a repo while git refuses it. A bare repo fails the same way. One
----`rev-parse` answers all three cases, and it is the same question the tool we
----are about to launch will ask.
+---it a repo while git refuses it. A bare repo fails the same way.
+---
+---`rev-parse --show-toplevel` answers every case with its EXIT CODE, which is
+---why it is the whole check. Measured against git 2.51:
+---
+---  a work tree (a bare repo's worktrees included)  rc 0    prints the top
+---  a bare repo root                                rc 128  "must be run in a work tree"
+---  inside a `.git` directory                       rc 128  same
+---  an empty `.git/` container, or a plain dir      rc 128  "not a git repository"
+---
+---An earlier draft also asked `--is-inside-work-tree` and required it to print
+---`true`. That check could never fire, because `--show-toplevel` already fails
+---whenever the answer would be `false` — and mutation proved it: removing
+---either check ALONE left the suite green, each masking the other, while
+---removing both reddened three cells. An unfalsifiable guard reports clean, so
+---it is gone.
 ---@param dir string?
 ---@return string?
 local function work_tree_top(dir)
   if type(dir) ~= "string" or dir == "" then return nil end
   if vim.fn.isdirectory(dir) ~= 1 then return nil end
-  local out = vim.fn.system({
-    "git", "-C", dir, "rev-parse", "--is-inside-work-tree", "--show-toplevel",
-  })
+  local out = vim.fn.system({ "git", "-C", dir, "rev-parse", "--show-toplevel" })
   if vim.v.shell_error ~= 0 then return nil end
-  local lines = vim.split(vim.trim(out), "\n", { plain = true })
-  if lines[1] ~= "true" or type(lines[2]) ~= "string" or lines[2] == "" then
-    return nil
-  end
-  return lines[2]
+  local top = vim.trim(out)
+  return top ~= "" and top or nil
 end
 
 ---The git scope: the repository a git-scoped entry point should act on.
