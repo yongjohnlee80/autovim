@@ -116,6 +116,25 @@ ok("*** git_root() returns the ACTIVE worktree, not the container ***",
   scope.git_root() == worktree, scope.git_root())
 ok("git_root() is a valid work tree", is_work_tree(scope.git_root()) == true)
 
+io.stdout:write("\n[3b] precedence: active beats a DIFFERENT valid work tree\n")
+-- The r0 review reasoned that [3] already covered the precedence question,
+-- because under `run-all.sh` the process cwd is the autovim checkout — a valid
+-- work tree different from the fixture. The cwd fact is true; the inference is
+-- not. Measured: [3] passes identically with cwd in a NON-repo tempdir, where
+-- there is nothing for `active` to beat. A cell that passes either way observes
+-- nothing, so the precondition is asserted here at the call site.
+do
+  local cwd0 = vim.fn.getcwd()
+  vim.cmd.cd(plain)
+  local s = with_auto_core(worktree, container)
+  ok("3b: precondition — cwd IS a valid work tree, and is not the active one",
+    is_work_tree(vim.fn.getcwd()) and vim.fn.resolve(vim.fn.getcwd()) ~= worktree,
+    vim.fn.getcwd())
+  ok("3b: *** active worktree wins over a valid, different cwd ***",
+    s.git_root() == worktree, s.git_root())
+  vim.cmd.cd(cwd0)
+end
+
 io.stdout:write("\n[4] every candidate is validated, not trusted\n")
 scope = with_auto_core(bare, container)
 ok("a BARE active worktree is rejected", scope.git_root() ~= bare, scope.git_root())
