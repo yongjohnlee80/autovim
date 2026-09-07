@@ -70,6 +70,47 @@ function M.scope_dir()
   return vim.fn.getcwd()
 end
 
+---The repo's NAME, from the label `auto-core.git.graph` produced.
+---
+---`graph.repo_label` answers a different question than this heading asks, and
+---it is right to. For the REPOS PANEL it returns a path when that path
+---disambiguates: relative to the workspace root for a repo underneath it
+---(`sub/dir/thing.nvim`), and `~`-shortened for one outside it
+---(`~/.config/nvim`). A panel with 100 columns and a tree of repos wants that.
+---
+---A 38-column heading does not. MEASURED against the live workspace on
+---2026-09-08, before this trim existed:
+---
+---  [~/Source/Projects/nvim-plugins/autovim - feat/panel-titles-and-finder-scope]
+---
+---Johno asked for "[repo-name - branch/worktree name]", and that is a path,
+---not a name. It appears whenever the repo is not under the resolved workspace
+---root — which is not an edge case: it is every repo reached before the first
+---`<leader>gw` of the session, the nvim runtime clone, and the knowledge base.
+---
+---So the heading takes the last segment. The disambiguation is not lost, it is
+---delegated: the repos panel directly below shows the full label, and the
+---branch is on this line already.
+---
+---MY OWN SUITE MISSED THIS, which is the part worth keeping. A cell asserted
+---`repo_label(...) == vim.fn.fnamemodify("/elsewhere/other", ":~")` — it
+---encoded auto-core's behaviour as correct FOR THIS CONSUMER without asking
+---whether a path is what a heading wants. It agreed with the wrong property.
+---An independent probe against the real workspace, using none of the
+---fixtures, is what found it.
+---@param label string
+---@return string
+function M.repo_name(label)
+  if type(label) ~= "string" or label == "" then return label end
+  local trimmed = label:gsub("/+$", "")
+  -- NEVER return empty. A label of "/" (or all slashes) trims to nothing and
+  -- has no last segment, which would render "[ - main]" — worse than the path
+  -- this function exists to shorten. Fall back to what we were given.
+  local seg = trimmed:match("([^/]+)$")
+  if seg and seg ~= "" then return seg end
+  return label
+end
+
 ---Resolve `dir` to a bracketed label. Uncached; `scope_label` is the entry
 ---point.
 ---@param dir string
@@ -98,7 +139,7 @@ function M.resolve(dir)
       if not wt_name or wt_name == "" then
         wt_name = vim.fn.fnamemodify(repo.worktree or dir, ":t")
       end
-      return ("[%s - %s]"):format(repo.label, wt_name)
+      return ("[%s - %s]"):format(M.repo_name(repo.label), wt_name)
     end
   end
 
