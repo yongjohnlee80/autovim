@@ -47,4 +47,77 @@ function M.kb_root()
   return M.auto_core_var("KB_ROOT")
 end
 
+---The worktree `<leader>gw` last switched to, as auto-core recorded it.
+---
+---`worktree.nvim`'s deliberate switch paths publish `worktree:switched` and
+---call `auto-core.git.worktree.set_active()`; an arbitrary `:cd` does not. So
+---this is the session's answer to "which checkout am I working in", and it is
+---already correct — see `git_root()` for why that mattered.
+---
+---Soft dependency, like every other auto-core reach here: nil when auto-core
+---is absent, or before the first switch of the session (`_active_worktree`
+---starts nil and is only set by that event).
+---@return string?
+function M.active_worktree()
+  local ok, wt = pcall(require, "auto-core.git.worktree")
+  if not ok or type(wt) ~= "table" or type(wt.get_active) ~= "function" then
+    return nil
+  end
+  local ok_value, value = pcall(wt.get_active)
+  if ok_value and type(value) == "string" and value ~= "" then
+    return value
+  end
+  return nil
+end
+
+---Resolve `dir` to the top of its git WORK TREE, or nil.
+---
+---The validation is the point. A directory can carry a `.git` entry and not be
+---a repository: this workspace has an empty `.git/` at its root, so
+---`vim.fs.find(".git")`, `isdirectory()` and every other existence check call
+---it a repo while git refuses it. A bare repo fails the same way. One
+---`rev-parse` answers all three cases, and it is the same question the tool we
+---are about to launch will ask.
+---@param dir string?
+---@return string?
+local function work_tree_top(dir)
+  if type(dir) ~= "string" or dir == "" then return nil end
+  if vim.fn.isdirectory(dir) ~= 1 then return nil end
+  local out = vim.fn.system({
+    "git", "-C", dir, "rev-parse", "--is-inside-work-tree", "--show-toplevel",
+  })
+  if vim.v.shell_error ~= 0 then return nil end
+  local lines = vim.split(vim.trim(out), "\n", { plain = true })
+  if lines[1] ~= "true" or type(lines[2]) ~= "string" or lines[2] == "" then
+    return nil
+  end
+  return lines[2]
+end
+
+---The git scope: the repository a git-scoped entry point should act on.
+---
+---Johno, 2026-09-07: after `<leader>gw` into `editor/refactor`, `<leader>gg`
+---died with "must be run inside a git repository". It was passing
+---`workspace_root()`, and this workspace is a CONTAINER of eleven separate
+---repos — several of them bare with their worktrees nested inside. A container
+---of repos is not a repo, so there was no value of `WORKSPACE` that could have
+---worked here.
+---
+---`<leader>gw` had already published the right answer into auto-core; nothing
+---read it. Hence the order:
+---
+---  1. auto-core's ACTIVE WORKTREE — what the last deliberate switch set.
+---  2. the work tree containing CWD — user-controlled, and still does not
+---     follow the focused buffer, which is the property this module exists to
+---     protect.
+---  3. nil — say so, rather than launching a tool into a failure.
+---
+---`workspace_root()` is deliberately NOT a fallback: it is the search scope,
+---and returning it here is how the outage happened. Every candidate is
+---validated, so this never returns a directory git would reject.
+---@return string?
+function M.git_root()
+  return work_tree_top(M.active_worktree()) or work_tree_top(vim.fn.getcwd())
+end
+
 return M

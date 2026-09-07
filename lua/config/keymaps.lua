@@ -78,7 +78,7 @@ vim.keymap.set("i", "<C-g>", nav_from_insert, { desc = "Navigate (central modal)
 -- `<F6>` shadows nothing in insert mode, so it is the cheaper of the two here.
 vim.keymap.set("i", "<F6>", nav_from_insert, { desc = "Navigate (central modal)" })
 
--- ── lazygit: pin to the workspace, not the focused buffer's repo ──────────
+-- ── lazygit: pin to the ACTIVE WORKTREE, not the focused buffer's repo ────
 --
 -- LazyVim binds `<leader>gg` to `Snacks.lazygit({ cwd = LazyVim.root.git() })`
 -- (`lazyvim/config/keymaps.lua`), and `root.git()` walks up from the CURRENT
@@ -86,11 +86,22 @@ vim.keymap.set("i", "<F6>", nav_from_insert, { desc = "Navigate (central modal)"
 -- document focused — an agent's `.todo-list/` task, an ADR, an md-harpoon
 -- preview — lazygit opened on the KB instead of the project, silently.
 --
--- Identical to the bug already fixed for the Root-Dir pickers, so both now
--- resolve through `utils.scope`. `<leader>gG` (explicitly cwd-scoped) and
+-- That was first fixed by pinning to `workspace_root()`, which broke it a
+-- different way (Johno, 2026-09-07): this workspace is a CONTAINER of eleven
+-- repos, several bare with their worktrees nested inside, so lazygit died with
+-- "must be run inside a git repository". `<leader>gw` had already published
+-- the active worktree into auto-core and nothing read it; `scope.git_root()`
+-- now does, and validates it. `<leader>gG` (explicitly cwd-scoped) and
 -- `<leader>gL` are left alone — asking for cwd should get cwd.
 if vim.fn.executable("lazygit") == 1 then
   vim.keymap.set("n", "<leader>gg", function()
-    Snacks.lazygit({ cwd = require("utils.scope").workspace_root() })
-  end, { desc = "Lazygit (Workspace)" })
+    local dir = require("utils.scope").git_root()
+    if not dir then
+      vim.notify(
+        "lazygit: no git work tree in scope (checked the active worktree and cwd)",
+        vim.log.levels.WARN, { title = "AutoVim" })
+      return
+    end
+    Snacks.lazygit({ cwd = dir })
+  end, { desc = "Lazygit (Worktree)" })
 end
