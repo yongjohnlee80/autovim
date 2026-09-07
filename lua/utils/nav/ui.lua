@@ -306,8 +306,15 @@ function M.open()
   -- maps. `h` used to be missing from it, so the back mapping above was
   -- overwritten here by a bind lookup that resolved to nothing — the modal
   -- advertised `h back` while only `<BS>` worked.
-  for c = string.byte("a"), string.byte("z") do
-    local letter = string.char(c)
+  -- BOTH cases. Widening the validator without widening this loop stores a
+  -- bind the modal never maps: accepted, listed in the hint line, and dead on
+  -- every press. RESERVED holds lowercase h/j/k/q only, so `H`/`J`/`K`/`Q`
+  -- are bindable — the buffer is `nofile` and non-modifiable, so the normal-mode
+  -- meanings they shadow (join, keywordprg, Ex mode) have nothing to act on.
+  local letters = {}
+  for c = string.byte("a"), string.byte("z") do letters[#letters + 1] = string.char(c) end
+  for c = string.byte("A"), string.byte("Z") do letters[#letters + 1] = string.char(c) end
+  for _, letter in ipairs(letters) do
     if not binds.RESERVED[letter] then
       map(letter, function()
         local id = binds.load()[letter]
