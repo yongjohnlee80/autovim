@@ -95,6 +95,10 @@ end
 ---@return string?
 local function work_tree_top(dir)
   if type(dir) ~= "string" or dir == "" then return nil end
+  -- Behaviour-NEUTRAL fast path: `git -C <missing>` already fails, so this only
+  -- avoids spawning a process for a stale or bogus candidate. Mutation cannot
+  -- kill it and should not be expected to — it is not a correctness guard, and
+  -- nobody should later "prove" that it is.
   if vim.fn.isdirectory(dir) ~= 1 then return nil end
   local out = vim.fn.system({ "git", "-C", dir, "rev-parse", "--show-toplevel" })
   if vim.v.shell_error ~= 0 then return nil end

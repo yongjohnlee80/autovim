@@ -143,6 +143,21 @@ ok("...and it follows cwd, resolved per call",
   with_auto_core(nil, container).git_root() == worktree)
 vim.cmd.cd(prev_cwd)
 
+io.stdout:write("\n[5b] a subdirectory resolves to the TOP of its work tree\n")
+-- Mutation found this gap: returning the CANDIDATE instead of git's toplevel
+-- passed every other cell, because until now no candidate was ever below the
+-- root. lazygit tolerates a subdir; the scope this module reports should still
+-- be the repository.
+vim.fn.mkdir(worktree .. "/lua/deep", "p")
+vim.cmd.cd(worktree .. "/lua/deep")
+scope = with_auto_core(nil, container)
+ok("*** cwd in a subdir -> the work tree TOP, not the subdir ***",
+  scope.git_root() == worktree, scope.git_root())
+scope = with_auto_core(worktree .. "/lua/deep", container)
+ok("an active worktree given as a subdir also resolves to the top",
+  scope.git_root() == worktree, scope.git_root())
+vim.cmd.cd(prev_cwd)
+
 io.stdout:write("\n[6] auto-core absent entirely (soft dependency)\n")
 vim.cmd.cd(plain)
 scope = with_auto_core(false, false)
