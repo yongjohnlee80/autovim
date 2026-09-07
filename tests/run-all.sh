@@ -21,7 +21,14 @@ run_suite() {
   local name="$1" file="$2"
   local out rc summary fail_n
   echo "── $name ──────────────────────────────────"
-  out="$(nvim --headless -u NONE -l "$file" 2>&1)"
+  # Suites that need a sandboxed environment (XDG roots set before the
+  # process starts, a pinned dependency checkout) have a dedicated shell
+  # runner next to them; invoke that instead of the bare -l invocation.
+  if [ -x "tests/run-$name.sh" ]; then
+    out="$(bash "tests/run-$name.sh" 2>&1)"
+  else
+    out="$(nvim --headless -u NONE -l "$file" 2>&1)"
+  fi
   rc=$?
   # Match both summary formats used across the family; the failed count is
   # the last integer on the line.
