@@ -60,15 +60,36 @@ return {
     opts = function(_, opts)
       opts.options = opts.options or {}
       opts.options.offsets = opts.options.offsets or {}
+      -- `text` is a FUNCTION, so the heading names the checkout you are in
+      -- rather than repeating the panel's own name at you (Johno,
+      -- 2026-09-08). bufferline calls it on every tabline redraw and accepts
+      -- a function here (`offset.lua`: `if type(text) == "function" then text
+      -- = text() end`), so the resolution is cached in `utils.panel_heading`
+      -- against the scope directory — the tabline redraws far too often to
+      -- spend three `git rev-parse` reads a frame.
+      --
+      -- Truncation is ours, not bufferline's. bufferline would cut from the
+      -- right of the whole string, which keeps the useless half — "auto-fin…"
+      -- — and drops the repo and branch. `panel_heading.heading` sheds the
+      -- "auto-finder: " prefix FIRST and only then ellipsizes the scope.
+      local function heading()
+        local ok, ph = pcall(require, "utils.panel_heading")
+        -- A literal fallback, deliberately: this runs inside a tabline
+        -- redraw, where an error would either blank the tabline or spam
+        -- notifications on every frame.
+        if not ok then return "auto-finder" end
+        local ok_text, text = pcall(ph.text)
+        return ok_text and text or "auto-finder"
+      end
       table.insert(opts.options.offsets, {
         filetype = "auto-finder-config",
-        text = "auto-finder",
+        text = heading,
         highlight = "Directory",
         text_align = "left",
       })
       table.insert(opts.options.offsets, {
         filetype = "auto-finder",
-        text = "auto-finder",
+        text = heading,
         highlight = "Directory",
         text_align = "left",
       })
