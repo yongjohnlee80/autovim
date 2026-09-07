@@ -51,8 +51,8 @@ git -C "$AUTOTVIM_WK_SOURCE" checkout --quiet --detach "$pin_commit"
 
 printf 'sandbox: %s\nwhich-key pin: %s\n' "$sandbox" "$pin_commit"
 
-out="$(nvim --headless -u NONE -l "$suite" 2>&1)"
-rc=$?
+out="$(nvim --headless -u NONE -l "$suite" 2>&1)" || rc=$?
+rc=${rc:-0}
 printf '%s\n' "$out"
 
 summary="$(printf '%s\n' "$out" | grep -oE "[0-9]+ passed, [0-9]+ failed" | tail -1 || true)"
