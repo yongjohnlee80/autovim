@@ -69,7 +69,8 @@ local function stub_full()
     -- `help` is a built-in Ex command (`exists(":help") == 2`), so a real
     -- session always offers it; the stub has to agree or the views group here
     -- would be a shape that cannot occur.
-    return name == "AutoAgentsDiffQueue" or name == "AutoCoreLog" or name == "help"
+    return name == "AutoAgentsDiffQueue" or name == "AutoCoreLog"
+      or name == "AutoFinderResumeDiff" or name == "help"
   end
 end
 
@@ -77,9 +78,22 @@ io.stdout:write("\n[1] the tree is built from probes, not hard-coded\n")
 stub_full()
 local tree = registry.tree()
 local ids = vim.tbl_map(function(g) return g.id end, tree)
-ok("all six groups appear in a fully-populated environment",
-  table.concat(ids, ",") == "agents,finder,review,terminal,views,browser",
+-- FIVE groups now, not six. The `review` group held exactly one child, the
+-- resumable diff, and it moved under `views` to sit beside the panel it was
+-- being confused with (Johno, 2026-09-08). It was kept separate because it
+-- comes and goes and would renumber the static rows; that is now answered by
+-- giving every `views` row an explicit key instead of a positional one, which
+-- section [1c] pins.
+ok("all five groups appear in a fully-populated environment",
+  table.concat(ids, ",") == "agents,finder,terminal,views,browser",
   table.concat(ids, ","))
+ok("*** the one-child `review` group is gone, not merely renamed ***",
+  (function()
+    for _, g in ipairs(tree) do
+      if g.id == "review" then return false end
+    end
+    return true
+  end)(), table.concat(ids, ","))
 
 local by_group = {}
 for _, g in ipairs(tree) do by_group[g.id] = g end
@@ -151,7 +165,7 @@ ok("terminals dispatch AutoAgentsTerm focus N",
   by_group.terminal.children[4].action.value == "AutoAgentsTerm focus 4",
   by_group.terminal.children[4].action.value)
 
-ok("only views whose command EXISTS are offered", #by_group.views.children == 3,
+ok("only views whose command EXISTS are offered", #by_group.views.children == 4,
   vim.inspect(vim.tbl_map(function(d) return d.id end, by_group.views.children)))
 
 -- Help had no one-gesture route left once the F-keys were retired: `F1`, the
@@ -608,39 +622,102 @@ do
     ran >= MIN_ASSERTIONS, "a section stopped contributing assertions")
 end
 
-io.stdout:write("\n[9] the review group offers resume, and only when there is one\n")
+io.stdout:write("\n[10] views names both diff panels, and offers resume only when there is one\n")
 do
-  -- Earlier sections mutate the shared probe table; re-establish the two this
+  -- Earlier sections mutate the shared probe table; re-establish the ones this
   -- section depends on so it does not read a tree an earlier test left behind.
   registry.probe.finder_sections = function() return { "config", "files", "repos" } end
   registry.probe.resume_diff = function() return true end
-  local rg
-  for _, g in ipairs(registry.tree()) do if g.id == "review" then rg = g end end
-  ok("*** a review group appears when a diff is resumable ***", rg ~= nil,
-    table.concat(vim.tbl_map(function(g) return g.id end, registry.tree()), ","))
-  ok("*** it sits right after finder ***", (function()
-    local ids = vim.tbl_map(function(g) return g.id end, registry.tree())
-    local fi, ri
-    for i, id in ipairs(ids) do
-      if id == "finder" then fi = i end
-      if id == "review" then ri = i end
-    end
-    return fi and ri and ri == fi + 1
-  end)())
-  ok("*** resume dispatches :AutoFinderResumeDiff ***",
-    rg and rg.children[1].action.kind == "cmd"
-      and rg.children[1].action.value == "AutoFinderResumeDiff",
-    rg and vim.inspect(rg.children[1].action))
-  ok("its label names the action", rg and rg.children[1].label == "resume diff review",
-    rg and rg.children[1].label)
+  registry.probe.has_command = function(name)
+    return name == "AutoAgentsDiffQueue" or name == "AutoCoreLog"
+      or name == "AutoFinderResumeDiff" or name == "help"
+  end
 
-  -- Nothing resumable -> no heading. An empty "review" row is worse than none,
-  -- and offering resume when there is nothing to resume is a dead key.
+  local function views()
+    for _, g in ipairs(registry.tree()) do
+      if g.id == "views" then return g end
+    end
+  end
+  local function row(id)
+    for _, d in ipairs((views() or {}).children or {}) do
+      if d.id == id then return d end
+    end
+  end
+
+  -- THE TWO PANELS ARE DISTINCTLY NAMED (Johno, 2026-09-08: "To avoid
+  -- confusion by the two similar diff_view panel names, let's name them
+  -- distinctively now"). Before this, `views` offered one row called "diff
+  -- queue" and a separate group offered "resume diff review", so neither name
+  -- said which panel it opened.
+  local aq, gd = row("views.agent-edits-queue"), row("views.git-diff-view")
+  ok("*** views offers the Agent Edits Queue ***", aq ~= nil,
+    vim.inspect(vim.tbl_map(function(d) return d.id end, (views() or {}).children or {})))
+  ok("*** and the Git Diff View, beside it ***", gd ~= nil,
+    vim.inspect(vim.tbl_map(function(d) return d.id end, (views() or {}).children or {})))
+  ok("*** the queue is labelled 'Agent Edits Queue' ***",
+    aq and aq.label == "Agent Edits Queue", aq and aq.label or "nil")
+  ok("*** the repos diff is labelled 'Git Diff View' ***",
+    gd and gd.label == "Git Diff View", gd and gd.label or "nil")
+  ok("the retired label 'diff queue' is gone",
+    (function()
+      for _, d in ipairs((views() or {}).children or {}) do
+        if d.label == "diff queue" then return false end
+      end
+      return true
+    end)())
+  ok("they dispatch the two different panels",
+    aq and aq.action.value == "AutoAgentsDiffQueue"
+      and gd and gd.action.value == "AutoFinderResumeDiff",
+    vim.inspect({ aq and aq.action.value, gd and gd.action.value }))
+  ok("each carries a detail line saying which is which",
+    aq and type(aq.detail) == "string" and aq.detail ~= ""
+      and gd and type(gd.detail) == "string" and gd.detail ~= "",
+    vim.inspect({ aq and aq.detail, gd and gd.detail }))
+
+  -- The labels are READ FROM THE PLUGINS' own PANEL_TITLE when loaded, so the
+  -- modal cannot name a row differently from what the panel's border says.
+  -- The fallback covers a lazy-loaded (or older) plugin, which is the normal
+  -- case and the one the four cells above exercise.
+  do
+    local saved = package.loaded["auto-agents.diff.ui"]
+    package.loaded["auto-agents.diff.ui"] = { PANEL_TITLE = "Renamed By Plugin" }
+    ok("*** the label follows the plugin's own PANEL_TITLE when it is loaded ***",
+      row("views.agent-edits-queue").label == "Renamed By Plugin",
+      row("views.agent-edits-queue").label)
+    package.loaded["auto-agents.diff.ui"] = saved
+    ok("and falls back to the known name when the plugin is not loaded",
+      row("views.agent-edits-queue").label == "Agent Edits Queue",
+      row("views.agent-edits-queue").label)
+  end
+
+  -- Nothing resumable -> the Git Diff View row is not offered. Dispatching
+  -- `AutoFinderResumeDiff` with nothing to resume is a dead key.
   registry.probe.resume_diff = function() return false end
-  local ids3 = vim.tbl_map(function(g) return g.id end, registry.tree())
-  ok("*** no resumable diff -> no review group ***", not vim.tbl_contains(ids3, "review"),
-    table.concat(ids3, ","))
+  ok("*** no resumable diff -> no Git Diff View row ***",
+    row("views.git-diff-view") == nil,
+    vim.inspect(vim.tbl_map(function(d) return d.id end, (views() or {}).children or {})))
+  ok("...but the queue is still there", row("views.agent-edits-queue") ~= nil)
+
+  -- THE RENUMBERING GUARANTEE. This is why the row could move into `views` at
+  -- all: the resumable diff appears and disappears, and with positional keys
+  -- every row after it would shift. `auto-core log` must answer to `3`
+  -- whether or not `2` is offered.
+  ok("*** auto-core log keeps key 3 while the diff row is ABSENT ***",
+    row("views.core-log") and row("views.core-log").key == "3",
+    row("views.core-log") and tostring(row("views.core-log").key) or "nil")
+  ok("*** and help keeps key 4 ***",
+    row("views.help") and row("views.help").key == "4",
+    row("views.help") and tostring(row("views.help").key) or "nil")
   registry.probe.resume_diff = function() return true end
+  ok("*** auto-core log STILL keys 3 once the diff row returns ***",
+    row("views.core-log") and row("views.core-log").key == "3",
+    row("views.core-log") and tostring(row("views.core-log").key) or "nil")
+  ok("*** and help STILL keys 4 ***",
+    row("views.help") and row("views.help").key == "4",
+    row("views.help") and tostring(row("views.help").key) or "nil")
+  ok("the two panels key 1 and 2",
+    row("views.agent-edits-queue").key == "1" and row("views.git-diff-view").key == "2",
+    vim.inspect({ row("views.agent-edits-queue").key, row("views.git-diff-view").key }))
 end
 
 io.stdout:write(string.format("\n%d passed, %d failed\n", pass_count, fail_count))

@@ -128,6 +128,32 @@ local DEFAULT_PROBES = {
   end,
 }
 
+---A panel's own formal name, read from the plugin that draws it.
+---
+---auto-agents and auto-finder each export the string they put on their
+---panel's border (`M.PANEL_TITLE`). Reading it means this modal cannot end up
+---labelling a row "Git Diff View" while the panel's border says something
+---else — the drift a hard-coded copy invites, and the reason the plugins
+---export the constant at all.
+---
+---`fallback` covers the plugin not being loaded yet, which is the normal case:
+---both are lazy-loaded, and a modal that could not name a destination until
+---you had already reached it would defeat its own purpose (the same reasoning
+---as `nav.roster`'s TOML fallback). It is also what a plugin predating the
+---constant answers with, so an older pin degrades to the right label rather
+---than to nil.
+---@param module string
+---@param fallback string
+---@return string
+local function _panel_title(module, fallback)
+  local loaded = package.loaded[module]
+  if type(loaded) == "table" and type(loaded.PANEL_TITLE) == "string"
+    and loaded.PANEL_TITLE ~= "" then
+    return loaded.PANEL_TITLE
+  end
+  return fallback
+end
+
 function M.reset_probes()
   M.probe = vim.tbl_extend("force", {}, DEFAULT_PROBES)
 end
@@ -228,24 +254,13 @@ function M.tree()
     groups[#groups + 1] = { id = "finder", label = "finder", children = children }
   end
 
-  -- The diff view is resumable (requirement 6): one entry, present only when
-  -- there is a diff to resume, so it is never a dead key. Its own group rather
-  -- than a row under `views` so it never renumbers the static view entries as
-  -- it appears and disappears.
-  if M.probe.resume_diff() then
-    groups[#groups + 1] = {
-      id = "review",
-      label = "review",
-      children = {
-        {
-          id = "review.resume-diff",
-          label = "resume diff review",
-          detail = "reopen the last repos diff where you left it",
-          action = { kind = "cmd", value = "AutoFinderResumeDiff" },
-        },
-      },
-    }
-  end
+  -- The resumable diff used to be its own `review` group, for a stated
+  -- reason: it appears and disappears, and a row under `views` would have
+  -- renumbered the static entries each time. It now sits under `views` with
+  -- the other panel it is confused with (Johno, 2026-09-08) — and the
+  -- renumbering concern is answered directly, by giving every `views` row an
+  -- EXPLICIT key rather than letting position assign one. See `candidates`
+  -- below.
 
   local terms = M.probe.terminals()
   if #terms > 0 then
@@ -294,11 +309,36 @@ function M.tree()
   --     that every slot is individually reachable under `agents`.
   -- Before adding a command here, read its definition and check it takes no
   -- required arguments and shows the user something.
+  --
+  -- EVERY ROW CARRIES AN EXPLICIT `key`. Position used to assign them, which
+  -- is why the resumable diff was kept in a group of its own: a row that comes
+  -- and goes renumbers everything after it, and a modal whose numbers move
+  -- under you is worse than one with a gap. With fixed keys the diff view can
+  -- sit here — next to the panel it is confused with, which is the point — and
+  -- `3` stays `auto-core log` whether or not `2` is offered.
   local candidates = {
-    { cmd = "AutoAgentsDiffQueue", id = "views.diff-queue", label = "diff queue" },
-    { cmd = "AutoCoreLog", id = "views.core-log", label = "auto-core log" },
-    -- Neovim's own help, appended LAST so the two rows above keep the numbers
-    -- they already had.
+    -- The two panels, adjacent and formally named (Johno, 2026-09-08). They
+    -- were both some variant of "diff view", so "close the diff view" was
+    -- ambiguous. The names are the plugins' own `PANEL_TITLE` constants; the
+    -- labels here are read from them when the plugin is loaded, so this list
+    -- cannot drift from what the panel's border actually says.
+    {
+      key = "1", cmd = "AutoAgentsDiffQueue",
+      id = "views.agent-edits-queue",
+      label = _panel_title("auto-agents.diff.ui", "Agent Edits Queue"),
+      detail = "edits agents are proposing, waiting on accept / deny",
+    },
+    {
+      key = "2", cmd = "AutoFinderResumeDiff",
+      id = "views.git-diff-view",
+      label = _panel_title("auto-finder.views.repos.tree", "Git Diff View"),
+      detail = "reopen the last repos diff where you left it",
+      -- Offered only when there IS a diff to resume, so it is never a dead
+      -- key: `AutoFinderResumeDiff` with nothing to resume just says so.
+      when = M.probe.resume_diff,
+    },
+    { key = "3", cmd = "AutoCoreLog", id = "views.core-log", label = "auto-core log" },
+    -- Neovim's own help, LAST.
     --
     -- It belongs here because nothing else reaches it in one gesture any more:
     -- `F1` — the key every other editor spends on help — went to auto-agents'
@@ -306,13 +346,15 @@ function M.tree()
     -- of this modal, help was not among the destinations that moved across.
     -- `:help` with no argument opens the main table of contents, so it meets
     -- the no-required-arguments rule above.
-    { cmd = "help", id = "views.help", label = "help" },
+    { key = "4", cmd = "help", id = "views.help", label = "help" },
   }
   for _, c in ipairs(candidates) do
-    if M.probe.has_command(c.cmd) then
+    if M.probe.has_command(c.cmd) and (c.when == nil or c.when() == true) then
       views[#views + 1] = {
+        key = c.key,
         id = c.id,
         label = c.label,
+        detail = c.detail,
         action = { kind = "cmd", value = c.cmd },
       }
     end
