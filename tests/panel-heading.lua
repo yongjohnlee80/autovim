@@ -139,6 +139,65 @@ do
   -- A trailing slash must not produce an empty label.
   ok("[1] a trailing slash does not empty the label",
     ph.resolve(ws .. "/") == "[nvim-plugins]", ph.resolve(ws .. "/"))
+
+  -- A REPO OUTSIDE THE WORKSPACE ROOT still shows its NAME, not a path.
+  --
+  -- Found by an independent probe against the live workspace, using none of
+  -- the fixtures above, which reported:
+  --
+  --   [~/Source/Projects/nvim-plugins/autovim - feat/panel-titles-and-finder-scope]
+  --
+  -- `graph.repo_label` returns a `~`-shortened PATH for a repo outside the
+  -- root, which is right for the repos panel (a path disambiguates) and wrong
+  -- for a 38-column heading (Johno asked for a repo NAME). It is not an edge
+  -- case either: it is every repo reached before the session's first
+  -- `<leader>gw`, plus the nvim runtime clone and the knowledge base.
+  --
+  -- The cell that should have caught it instead asserted `repo_label` returns
+  -- the `~` path — encoding auto-core's behaviour as correct for THIS consumer
+  -- without asking whether a path is what a heading wants.
+  local outside = sb .. "/outside-the-workspace"
+  vim.fn.mkdir(outside, "p")
+  G(outside, "init", "-q", "-b", "trunk")
+  vim.fn.writefile({ "x" }, outside .. "/f.txt")
+  G(outside, "add", "."); G(outside, "commit", "-q", "-m", "one")
+  ok("[1] *** a repo OUTSIDE the workspace root shows its NAME, not a path ***",
+    ph.resolve(outside) == "[outside-the-workspace - trunk]", ph.resolve(outside))
+  ok("[1] fixture precondition: auto-core really does hand back a path there",
+    (function()
+      local g = require("auto-core.git.graph")
+      local r = g.repo_at(outside, ws)
+      return r ~= nil and r.label:find("/", 1, true) ~= nil
+    end)(), "auto-core returned a bare name; this cell no longer tests anything")
+
+  -- A repo NESTED under the root gets a relative label (`sub/dir/repo`); the
+  -- heading takes the last segment there too.
+  local nestdir = ws .. "/group/nested-repo"
+  vim.fn.mkdir(nestdir, "p")
+  G(nestdir, "init", "-q", "-b", "main")
+  vim.fn.writefile({ "x" }, nestdir .. "/f.txt")
+  G(nestdir, "add", "."); G(nestdir, "commit", "-q", "-m", "one")
+  ok("[1] *** a nested repo shows its own name, not its path under the root ***",
+    ph.resolve(nestdir) == "[nested-repo - main]", ph.resolve(nestdir))
+  ok("[1] fixture precondition: auto-core labels the nested repo with a path",
+    (function()
+      local g = require("auto-core.git.graph")
+      local r = g.repo_at(nestdir, ws)
+      return r ~= nil and r.label == "group/nested-repo"
+    end)(), require("auto-core.git.graph").repo_at(nestdir, ws).label)
+
+  -- repo_name in isolation, including the shapes it must leave alone.
+  ok("[1] repo_name passes a bare name through untouched",
+    ph.repo_name("thing.nvim") == "thing.nvim", ph.repo_name("thing.nvim"))
+  ok("[1] repo_name takes the last segment of a relative label",
+    ph.repo_name("group/nested-repo") == "nested-repo", ph.repo_name("group/nested-repo"))
+  ok("[1] repo_name takes the last segment of a ~-shortened path",
+    ph.repo_name("~/.config/nvim") == "nvim", ph.repo_name("~/.config/nvim"))
+  ok("[1] repo_name tolerates a trailing slash",
+    ph.repo_name("a/b/c/") == "c", ph.repo_name("a/b/c/"))
+  ok("[1] repo_name does not crash on nonsense",
+    ph.repo_name("") == "" and ph.repo_name("/") == "/",
+    ("%q %q"):format(ph.repo_name(""), ph.repo_name("/")))
 end
 
 -- ── [2] the scope directory comes from auto-core, not the buffer ────────────
