@@ -433,6 +433,38 @@ local readme_src = table.concat(vim.fn.readfile(root .. "/README.md"), "\n")
 ok("the README states the same floor", readme_src:find(NVIM_MIN, 1, true) ~= nil)
 ok("the README no longer claims 0.10", readme_src:find("≥0.10", 1, true) == nil)
 
+io.stdout:write("\n[16] no tracked path carries a shell-hostile character\n")
+--
+-- A file literally named `\\` sat in this repo from the INITIAL commit until
+-- 2026-09-07. Nothing ever looked at it, so `update.sh`'s rsync overlay kept
+-- delivering it into every install for the life of the distribution.
+--
+-- The charset below is the portable-filename set. A path outside it is either
+-- an accident (a redirect that consumed its target, a quoted heredoc that
+-- lost its filename) or a portability hazard on the macOS/Windows checkouts
+-- the distro also targets. Either way nothing legitimate in a Neovim config
+-- needs a character outside `[A-Za-z0-9._/-]`, so the whole class is refused
+-- rather than the one byte that caused the incident.
+-- Plain `ls-files`, not `-z`: Neovim's `systemlist` maps NUL to NL, so the
+-- whole `-z` stream comes back as ONE string and the per-path scan below
+-- would see a single blob. Plain output is one path per line, and git's
+-- `core.quotePath` already renders any name outside the safe set in quoted
+-- C form (the offender here arrives as the four bytes `"\\"`), so a hostile
+-- name cannot pass through looking ordinary.
+local tracked = vim.fn.systemlist({ "git", "-C", root, "ls-files" })
+ok("git ls-files enumerated the tracked tree",
+  vim.v.shell_error == 0 and #tracked > 0,
+  "shell_error=" .. tostring(vim.v.shell_error) .. " lines=" .. tostring(#tracked))
+local hostile = {}
+for _, path in ipairs(tracked) do
+  if path ~= "" and path:match("[^A-Za-z0-9._/-]") then
+    hostile[#hostile + 1] = path
+  end
+end
+ok("every tracked path is within [A-Za-z0-9._/-]",
+  #hostile == 0,
+  "offending: " .. table.concat(hostile, ", "))
+
 -- Assertion floor. Several sections above are guarded by `if` (the lock-file
 -- JSON block only asserts when the decode succeeded), and a section that stops
 -- contributing assertions otherwise reports a smaller green number rather than
@@ -444,7 +476,7 @@ ok("the README no longer claims 0.10", readme_src:find("≥0.10", 1, true) == ni
 -- Registered through `ok()` deliberately, so a shortfall lands in the FAIL list
 -- and the printed summary rather than as a bare non-zero exit after a "0
 -- failed" line — which reads to the runner like a post-summary crash.
-local MIN_ASSERTIONS = 115
+local MIN_ASSERTIONS = 117
 do
   local ran = pass_count + fail_count
   ok(("assertion floor: ran %d, expected at least %d"):format(ran, MIN_ASSERTIONS),
