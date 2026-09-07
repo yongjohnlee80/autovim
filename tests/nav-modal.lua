@@ -303,8 +303,43 @@ ok("reset_probes restores the real probes",
 
 io.stdout:write("\n[5] bind validation\n")
 ok("a single lowercase letter is accepted", binds.reject_reason("d") == nil)
-ok("an uppercase letter is refused", binds.reject_reason("D") ~= nil)
+-- Capitals are accepted so opposing actions can PAIR — `d` and `D` for a
+-- do/undo-shaped pair, `o` and `O` for open-here / open-elsewhere. Johno's
+-- ask, 2026-09-07. The old rule refused them with no rationale recorded
+-- anywhere; the dispatch is `vim.keymap.set`, which is case-sensitive and
+-- handles uppercase natively, so nothing technical was ever in the way.
+ok("a single UPPERCASE letter is accepted", binds.reject_reason("D") == nil,
+  tostring(binds.reject_reason("D")))
+-- Case must SEPARATE, or pairing is impossible: `d` and `D` have to be two
+-- independent slots, not one that overwrites the other.
+-- SAVE and restore, do not nil: later sections rely on the overrides that were
+-- in force, and clearing them sent their reads at the real state file. Two
+-- unrelated cells went red before this was a save/restore.
+local _prev_path, _prev_ws = binds._path_override, binds._workspace_override
+binds._path_override = vim.fn.tempname()
+binds._workspace_override = "/tmp/case-ws"
+binds.bind("d", "files")
+binds.bind("D", "repos")
+local case_store = binds.load()
+ok("lowercase and uppercase are INDEPENDENT slots",
+  case_store.d == "files" and case_store.D == "repos",
+  vim.inspect(case_store))
+-- The store round-trips through JSON, where a case-folding sanitize would
+-- silently merge them on the next read.
+ok("...and both survive a reload", (function()
+  local again = binds.load()
+  return again.d == "files" and again.D == "repos"
+end)(), vim.inspect(binds.load()))
+binds._path_override, binds._workspace_override = _prev_path, _prev_ws
 ok("a digit is refused", binds.reject_reason("1") ~= nil)
+-- The place a naive fix goes wrong: `ui.lua` installs the custom binds with a
+-- loop over a-z. Accepting a capital in the validator without widening that
+-- loop stores a bind the modal never MAPS — accepted, listed, and dead on
+-- every press.
+local ui_src = table.concat(vim.fn.readfile(root .. "/lua/utils/nav/ui.lua"), "\n")
+ok("ui.lua's bind loop covers UPPERCASE letters too",
+  ui_src:find('string.byte("A")', 1, true) ~= nil,
+  "a-z only: a stored capital would never be mapped")
 ok("a multi-char string is refused", binds.reject_reason("dd") ~= nil)
 ok("nil is refused", binds.reject_reason(nil) ~= nil)
 -- `h` is reserved because the modal MAPS it (back up a level). It was missing

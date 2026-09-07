@@ -77,7 +77,10 @@ local function sanitize(tbl)
     return out
   end
   for key, id in pairs(tbl) do
-    if type(key) == "string" and key:match("^%l$") and type(id) == "string" and id ~= "" then
+    -- `%a`, not `%l`: capitals are valid binds so opposing actions can pair
+    -- (`d`/`D`, `o`/`O`). Case SEPARATES — they are two independent slots, and
+    -- folding them here would silently merge a pair on the next read.
+    if type(key) == "string" and key:match("^%a$") and type(id) == "string" and id ~= "" then
       out[key] = id
     end
   end
@@ -184,8 +187,12 @@ end
 ---@param key string
 ---@return string|nil
 function M.reject_reason(key)
-  if type(key) ~= "string" or not key:match("^%l$") then
-    return "pick a single lowercase letter (a-z)"
+  -- Lowercase-only was the original rule and no rationale for it was ever
+  -- recorded. Nothing technical required it: the modal dispatches through
+  -- `vim.keymap.set`, which is case-sensitive and handles uppercase natively.
+  -- Capitals let opposing destinations pair under one letter (Johno, 2026-09-07).
+  if type(key) ~= "string" or not key:match("^%a$") then
+    return "pick a single letter (a-z or A-Z)"
   end
   if M.RESERVED[key] then
     return ("`%s` is reserved by the modal (j/k move, h backs up, q closes)"):format(key)
