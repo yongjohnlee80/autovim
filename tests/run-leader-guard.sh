@@ -43,7 +43,9 @@ local_checkout="/home/johno/Source/Projects/nvim-plugins/which-key.nvim/main"
 if [ -d "$local_checkout/.git" ]; then
   git clone --quiet --no-hardlinks "$local_checkout" "$AUTOTVIM_WK_SOURCE"
 else
-  git clone --quiet --depth 1 https://github.com/folke/which-key.nvim.git "$AUTOTVIM_WK_SOURCE"
+  # Full clone (NOT --depth 1): the pinned commit is an older revision,
+  # unreachable from a shallow HEAD tip.
+  git clone --quiet https://github.com/folke/which-key.nvim.git "$AUTOTVIM_WK_SOURCE"
 fi
 git -C "$AUTOTVIM_WK_SOURCE" checkout --quiet --detach "$pin_commit"
 
