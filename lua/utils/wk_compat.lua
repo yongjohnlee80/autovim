@@ -257,8 +257,17 @@ function M.interaction_reason()
     return nil
   end
 
+  -- The CALL is guarded, not just the require: `leader_guard.repair` documents
+  -- "never throws", and a future `View.valid()` that raises would break that
+  -- promise through this function (lector, PR #18 r0, non-blocking). An
+  -- unanswerable window question fails safe as "no window", which routes the
+  -- state to the age check rather than to an unconditional block.
   local ok_v, View = pcall(require, "which-key.view")
-  local window_up = ok_v and type(View.valid) == "function" and View.valid() == true
+  local window_up = false
+  if ok_v and type(View.valid) == "function" then
+    local ok_call, valid = pcall(View.valid)
+    window_up = ok_call and valid == true
+  end
   if window_up then
     return "popup-open"
   end
@@ -311,9 +320,20 @@ end
 --- drain `in_macro()`).
 ---
 --- NOTE: this is the one place the family feeds a key, and it is reachable ONLY
---- from an explicitly user-invoked repair. ADR-0091 §4 forbids synthetic
---- keystrokes in the automatic path, and a recording the user is still building
---- is theirs — closing it silently on an idle tick would destroy work.
+--- from an explicitly user-invoked repair.
+---
+--- REFERENCE: ADR-0091 "Amendment — 2026-09-10: operator-invoked macro
+--- termination". Decision §4 as originally accepted said, unqualified, "Do not …
+--- feed synthetic user keystrokes"; the amendment is what authorizes this
+--- narrow exception, and it authorizes exactly this shape: never automatic, a
+--- non-remapped immediate `q`, only for a VERIFIED active recording, closure
+--- verified, refuse and report on failure. An earlier revision of this comment
+--- claimed §4 had always been automatic-path-only — it had not, and a comment
+--- is not the place to move an accepted decision (lector, PR #18 r0).
+---
+--- Automatic repair still may not do this under any circumstances: a recording
+--- the user is building is theirs, and ending it on an idle tick would destroy
+--- work silently.
 --- The `x` flag is load-bearing: it drains the typeahead NOW. Without it the
 --- `q` is merely queued, so `reg_recording()` is still set when this returns —
 --- and the rebuild that follows in the same tick cannot stick, because
