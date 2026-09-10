@@ -566,6 +566,289 @@ do
   )
 end
 
+-- ── [6] the blocked-repair deadlock (2026-09-10) ──────────────────────────
+-- The guard stood down for "which-key interaction or macro active" — one string
+-- covering a user recording a macro AND a which-key State object orphaned with
+-- no window. The orphan never ends by itself, so the guard reported BROKEN on
+-- every idle tick and refused to rebuild: escape needed hand-typed Lua.
+--
+-- Section [3] already pins that a REAL macro recording is respected. This
+-- section pins the other half: the orphan is reaped, the causes are told apart
+-- by name, and the operator has a forced way through.
+do
+  boot_child()
+  restore_from_broken()
+
+  -- Construct an orphaned State: set, no window, aged past which-key's timing.
+  -- `interaction_reason` reads only `.started` and `View.valid()`, so a minimal
+  -- object is the honest fixture — and its shape is asserted, not assumed.
+  local function orphan_state(age_ms)
+    return lua_str(string.format(
+      [[
+      (function()
+        local uv = vim.uv or vim.loop
+        local S = require("which-key.state")
+        S.state = { mode = require("which-key.buf").get({ mode = "n" }), node = nil,
+                    filter = {}, started = uv.hrtime() / 1e6 - %d, show = false }
+        local V = require("which-key.view")
+        return { set = S.state ~= nil, window = V.valid() == true }
+      end)()
+    ]],
+      age_ms
+    ))
+  end
+
+  local fresh = orphan_state(0)
+  ok("[6] fixture: State set with no window", fresh.set == true and fresh.window == false, vim.json.encode(fresh))
+  local live = lua_str([[
+    (function() local c, d = require("utils.wk_compat").interaction_reason(); return { cause = c, detail = d } end)()
+  ]])
+  ok("[6] *** a young stateless-window interaction is LIVE (not reaped) ***", live.cause == "state-live", vim.json.encode(live))
+
+  orphan_state(30000)
+  local orphaned = lua_str([[
+    (function() local c, d = require("utils.wk_compat").interaction_reason(); return { cause = c, detail = d } end)()
+  ]])
+  ok(
+    "[6] *** the same object, aged, is ORPHANED ***",
+    orphaned.cause == "state-orphaned" and tostring(orphaned.detail):find("no window") ~= nil,
+    vim.json.encode(orphaned)
+  )
+  ok("[6] *** and an orphan is not an active interaction ***",
+    lua_str([[require("utils.wk_compat").interaction_active()]]) == false)
+
+  -- THE DEADLOCK: trigger genuinely gone AND an orphaned State latched.
+  break_trigger()
+  orphan_state(30000)
+  ok("[6] fixture: trigger really gone", trigger_count() == 0, trigger_count())
+  local deadlocked = lua_str([[
+    (function()
+      local rep = require("utils.leader_guard").repair()
+      return { repaired = rep.repaired, healthy = rep.healthy, reason = rep.reason, cleared = rep.cleared }
+    end)()
+  ]])
+  ok(
+    "[6] *** the orphan is reaped and the trigger repaired, unattended ***",
+    deadlocked.repaired == true and deadlocked.healthy == true,
+    vim.json.encode(deadlocked)
+  )
+  ok(
+    "[6] *** and the report says what it cleared ***",
+    tostring(deadlocked.cleared):find("orphaned which%-key state") ~= nil,
+    vim.json.encode(deadlocked)
+  )
+  ok("[6] the reaped State is gone, not merely ignored", popup_open() == false)
+
+  -- DISCRIMINATING CONTROL: restore the old one-string predicate and the very
+  -- same fixture must go back to refusing. Without this, the assertions above
+  -- would pass on a guard that repairs unconditionally.
+  break_trigger()
+  orphan_state(30000)
+  local old_behaviour = lua_str([[
+    (function()
+      local compat = require("utils.wk_compat")
+      local real = compat.interaction_reason
+      compat.interaction_reason = function()
+        -- the pre-fix semantics: State.state ~= nil means "active", full stop
+        local S = require("which-key.state")
+        if S.state ~= nil then return "popup-open" end
+        return nil
+      end
+      local rep = require("utils.leader_guard").repair()
+      compat.interaction_reason = real
+      return { repaired = rep.repaired, healthy = rep.healthy, reason = rep.reason }
+    end)()
+  ]])
+  ok(
+    "[6] *** control: the pre-fix predicate deadlocks on this exact fixture ***",
+    old_behaviour.repaired == false and old_behaviour.healthy == false,
+    vim.json.encode(old_behaviour)
+  )
+  lua([[require("utils.wk_compat").reap_state()]])
+  restore_from_broken()
+
+  -- Differentiated diagnosis: a recording names its register and the way out.
+  lua([[
+    vim.api.nvim_set_current_buf(1)
+    vim.fn.setreg("z", "")
+    vim.cmd.normal("qz")
+  ]])
+  settle(50)
+  break_trigger()
+  local macro_rep = lua_str([[
+    (function()
+      local rep = require("utils.leader_guard").repair()
+      return { repaired = rep.repaired, reason = rep.reason }
+    end)()
+  ]])
+  ok(
+    "[6] *** a macro recording is named by register, not lumped in ***",
+    macro_rep.repaired == false
+      and tostring(macro_rep.reason):find("macro recording %(register z%)") ~= nil,
+    vim.json.encode(macro_rep)
+  )
+  ok(
+    "[6] *** and the notice says how to get out of it ***",
+    tostring(macro_rep.reason):find("AutovimLeaderRepair!", 1, true) ~= nil,
+    vim.json.encode(macro_rep)
+  )
+
+  -- FORCE, with the recording still latched. This is the load-bearing case:
+  -- while a recording is open, which-key's own `Triggers.schedule` refuses to
+  -- re-attach, so a rebuild that does not close the macro cannot stick.
+  local forced = lua_str([[
+    (function()
+      local rep = require("utils.leader_guard").repair(nil, { force = true })
+      return { repaired = rep.repaired, healthy = rep.healthy, cleared = rep.cleared,
+               recording = vim.fn.reg_recording() }
+    end)()
+  ]])
+  settle(100)
+  ok(
+    "[6] *** forced repair closes the recording and recovers ***",
+    forced.healthy == true and forced.recording == "",
+    vim.json.encode(forced)
+  )
+  ok(
+    "[6] *** and reports the macro it closed ***",
+    tostring(forced.cleared):find("macro recording %(register z%)") ~= nil,
+    vim.json.encode(forced)
+  )
+
+  -- RepairLeaderKey: reachable three ways, all of them without a mapping.
+  local surfaces = lua_str([[
+    (function()
+      local cmds = vim.api.nvim_get_commands({})
+      return {
+        module = type(require("utils.leader_guard").RepairLeaderKey) == "function",
+        global = type(_G.RepairLeaderKey) == "function",
+        command = cmds["RepairLeaderKey"] ~= nil,
+        bang_check = cmds["AutovimLeaderCheck"] and cmds["AutovimLeaderCheck"].bang == true,
+        bang_repair = cmds["AutovimLeaderRepair"] and cmds["AutovimLeaderRepair"].bang == true,
+      }
+    end)()
+  ]])
+  ok("[6] *** RepairLeaderKey exists as a module method ***", surfaces.module == true, vim.json.encode(surfaces))
+  ok("[6] *** …as :lua RepairLeaderKey() ***", surfaces.global == true, vim.json.encode(surfaces))
+  ok("[6] *** …and as :RepairLeaderKey ***", surfaces.command == true, vim.json.encode(surfaces))
+  ok(
+    "[6] the repair commands take a bang",
+    surfaces.bang_check == true and surfaces.bang_repair == true,
+    vim.json.encode(surfaces)
+  )
+
+  -- The whole incident state at once — latched recording AND orphaned state AND
+  -- a missing trigger — cleared by the one call the operator has to remember.
+  restore_from_broken()
+  lua([[
+    vim.api.nvim_set_current_buf(1)
+    vim.fn.setreg("q", "")
+    vim.cmd.normal("qq")
+  ]])
+  settle(50)
+  break_trigger()
+  orphan_state(30000)
+  local rlk = lua_str([[
+    (function()
+      local rep = _G.RepairLeaderKey()
+      return { healthy = rep.healthy, recording = vim.fn.reg_recording(),
+               state = require("which-key.state").state ~= nil, cleared = rep.cleared }
+    end)()
+  ]])
+  settle(100)
+  ok(
+    "[6] *** RepairLeaderKey recovers the full incident state in one call ***",
+    rlk.healthy == true and rlk.recording == "" and rlk.state == false,
+    vim.json.encode(rlk)
+  )
+
+  -- And a real action fires again afterwards, through actual input keys — the
+  -- only proof that the popup path works, not just that a mapping exists.
+  local before = fired()
+  input(" ac")
+  settle(300)
+  ok("[6] *** a leader action fires after RepairLeaderKey ***", fired() == before + 1,
+    ("%s -> %s"):format(tostring(before), tostring(fired())))
+end
+
+-- ── [7] the rebuild reason is the real one ────────────────────────────────
+-- `rebuild_mode` returned `with_internals(...) or false, "which-key internals
+-- unavailable"`. `f() or false` truncates f() to one value, so the inner reason
+-- was dropped and that literal was the reason for EVERY outcome — including
+-- success, and including causes that prove the internals WERE available. Every
+-- "repair failed: which-key internals unavailable" in the wild was unattributed.
+do
+  boot_child()
+  restore_from_broken()
+
+  local success = lua_str([[
+    (function()
+      local repaired, reason = require("utils.wk_compat").rebuild_mode(vim.api.nvim_get_current_buf(), "n")
+      return { repaired = repaired, reason = reason }
+    end)()
+  ]])
+  ok(
+    "[7] *** a successful rebuild reports no failure reason ***",
+    success.repaired == true and (success.reason == nil or success.reason == vim.NIL),
+    vim.json.encode(success)
+  )
+
+  -- BUFFER-LOCAL, deliberately. A global `<leader>` mapping loses to the
+  -- buffer-local which-key trigger under Vim's own resolution order, so with a
+  -- healthy trigger in place `has_competing_mapping` correctly reports false
+  -- and the rebuild proceeds — the first version of this cell asserted a
+  -- refusal that the design does not (and should not) produce. The real
+  -- "user owns leader here" shape is a buffer-local mapping.
+  local competing = lua_str([[
+    (function()
+      vim.keymap.set("n", "<leader>", "<cmd>echo 'mine'<cr>", { buffer = 0, desc = "User owned" })
+      local compat = require("utils.wk_compat")
+      local buf = vim.api.nvim_get_current_buf()
+      local owned = compat.has_competing_mapping(buf, "n", " ")
+      local repaired, reason = compat.rebuild_mode(buf, "n")
+      vim.keymap.del("n", "<leader>", { buffer = 0 })
+      return { repaired = repaired, reason = reason, owned = owned }
+    end)()
+  ]])
+  ok("[7] fixture: the user's mapping really owns leader", competing.owned == true, vim.json.encode(competing))
+  ok(
+    "[7] *** a competing mapping is named as the cause, not the internals ***",
+    competing.repaired == false and competing.reason == "competing mapping present",
+    vim.json.encode(competing)
+  )
+
+  local invalid = lua_str([[
+    (function()
+      local b = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_delete(b, { force = true })
+      local repaired, reason = require("utils.wk_compat").rebuild_mode(b, "n")
+      return { repaired = repaired, reason = reason }
+    end)()
+  ]])
+  ok(
+    "[7] an invalid buffer is named as the cause",
+    invalid.repaired == false and invalid.reason == "buffer invalid",
+    vim.json.encode(invalid)
+  )
+
+  -- The string is still used where it is TRUE: internals genuinely absent.
+  local absent = lua_str([[
+    (function()
+      local compat = require("utils.wk_compat")
+      local real = compat.available
+      compat.available = function() return false end
+      local repaired, reason = compat.rebuild_mode(vim.api.nvim_get_current_buf(), "n")
+      compat.available = real
+      return { repaired = repaired, reason = reason }
+    end)()
+  ]])
+  ok(
+    "[7] *** and it still reports unavailable internals when they ARE unavailable ***",
+    absent.repaired == false and absent.reason == "which-key internals unavailable",
+    vim.json.encode(absent)
+  )
+end
+
 -- ── teardown & summary ────────────────────────────────────────────────────
 vim.fn.jobstop(child)
 io.stdout:write(string.format("%d passed, %d failed\n", pass_count, fail_count))
