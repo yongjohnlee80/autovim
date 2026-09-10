@@ -142,7 +142,16 @@ end
 ---@param mode string
 ---@return boolean repaired, string? reason
 function M.rebuild_mode(buf, mode)
-  return with_internals(function(Buf, Triggers)
+  -- The result is captured, not returned inline. `return with_internals(...) or
+  -- false, "…"` reads like a fallback but is not one: `f() or false` truncates
+  -- f() to ONE value, so the inner reason was discarded and the literal
+  -- "which-key internals unavailable" was returned as the reason for EVERY
+  -- outcome — including success and "competing mapping present". Every
+  -- `repair failed for buffer N: which-key internals unavailable` warning in
+  -- the wild was therefore unattributed: the string named the one cause the
+  -- code could not actually have been in (the internals were plainly available,
+  -- or `with_internals` would not have run the body).
+  local repaired, reason = with_internals(function(Buf, Triggers)
     if not vim.api.nvim_buf_is_valid(buf) then
       return false, "buffer invalid"
     end
@@ -168,17 +177,162 @@ function M.rebuild_mode(buf, mode)
       return false, "mode did not reattach (disabled buffer?)"
     end
     return true
-  end) or false,
-    "which-key internals unavailable"
+  end)
+  if repaired == nil then
+    return false, "which-key internals unavailable"
+  end
+  return repaired, reason
 end
 
---- True when which-key is mid-interaction (popup open) or executing a macro.
-function M.interaction_active()
-  if require("which-key.util").in_macro() then
-    return true
+-- ── interaction diagnosis ─────────────────────────────────────────────────
+-- Two different things used to answer to one name. `"which-key interaction or
+-- macro active"` covered a user recording a macro (respect it) and a which-key
+-- State object orphaned by an interaction that never cleaned up (must be
+-- reaped, or the guard is deadlocked: it reports BROKEN on every idle tick and
+-- refuses to rebuild, forever). Johno hit exactly that, and the only escape was
+-- a hand-typed Lua one-liner.
+--
+-- The mechanism, read out of the pinned which-key source rather than inferred:
+--
+--   * `triggers.M.schedule()` is what re-attaches suspended triggers, and its
+--     drain callback begins `if Util.in_macro() then return vim.defer_fn(...)`.
+--     So while ANY macro is recording or executing, which-key will not
+--     re-install the `<leader>` trigger at all. A recording left running (a `q`
+--     that was never closed) therefore keeps the trigger missing AND — through
+--     `in_macro()` below — keeps the guard from repairing it. Both halves of
+--     the deadlock come from the same latched register, which is why Johno's
+--     manual snippet had to stop the recording before anything else worked.
+--   * `state.M.start()` sets `M.state` and then, on the immediately-executing
+--     path (`if not M.check(M.state) then return true end`), returns with
+--     `M.state` STILL SET after `M.execute` has already called
+--     `Triggers.suspend(state.mode)`. `M.state` is cleared by `M.stop()`, which
+--     the ModeChanged autocmd drives — so an action that never leaves normal
+--     mode can leave the field latched with no popup on screen.
+--
+-- REFERENCE: ~/.local/share/nvim/lazy/which-key.nvim/lua/which-key/{state,triggers,util}.lua
+-- at the pinned 3aab214.
+
+local uv = vim.uv or vim.loop
+
+--- How stale a State object must be before it is treated as orphaned rather
+--- than live. `timeoutlen * 2` follows which-key's own timing (its `State.check`
+--- compares elapsed against a single `timeoutlen`), with a 2s floor so a tiny
+--- `timeoutlen` cannot make a live interaction look abandoned.
+local function stale_after_ms()
+  local tl = tonumber(vim.o.timeoutlen) or 1000
+  return math.max(2000, tl * 2)
+end
+
+--- Structured cause of a blocked repair, or nil when nothing is in progress.
+---
+--- Causes, most specific first:
+---   "macro-recording"  detail = register — a user action; never stomped
+---                      automatically, and the thing that also stops which-key
+---                      re-attaching its own triggers.
+---   "macro-executing"  detail = register — transient; the replay will end.
+---   "popup-open"       the which-key window is genuinely on screen.
+---   "state-live"       `State.state` is set with no window yet, and young
+---                      enough to be a deferred popup mid-flight — or of an
+---                      unrecognized shape, which is treated as live because
+---                      an unageable state is one we cannot prove is stale.
+---   "state-orphaned"   `State.state` is set, NO window is valid, and it has
+---                      been that way longer than `stale_after_ms()`. This is
+---                      the deadlock; it is not an interaction.
+---@return string? cause, string? detail
+function M.interaction_reason()
+  local ok_u, Util = pcall(require, "which-key.util")
+  if ok_u and type(Util.in_macro) == "function" then
+    local recording = vim.fn.reg_recording()
+    if recording ~= "" then
+      return "macro-recording", recording
+    end
+    local executing = vim.fn.reg_executing()
+    if executing ~= "" then
+      return "macro-executing", executing
+    end
   end
+
   local ok_s, State = pcall(require, "which-key.state")
-  return ok_s and State.state ~= nil
+  if not (ok_s and State.state ~= nil) then
+    return nil
+  end
+
+  local ok_v, View = pcall(require, "which-key.view")
+  local window_up = ok_v and type(View.valid) == "function" and View.valid() == true
+  if window_up then
+    return "popup-open"
+  end
+
+  local started = type(State.state) == "table" and State.state.started
+  if type(started) ~= "number" then
+    -- Cannot age it, so cannot call it stale. Blocks automatically; a forced
+    -- repair still clears it.
+    return "state-live", "unknown state shape"
+  end
+  local elapsed = uv.hrtime() / 1e6 - started
+  if elapsed <= stale_after_ms() then
+    return "state-live", ("%dms"):format(math.floor(elapsed))
+  end
+  return "state-orphaned", ("%dms with no window"):format(math.floor(elapsed))
+end
+
+--- True when a real interaction is in progress and an AUTOMATIC repair must
+--- stand down. An orphaned State object is deliberately NOT one: it is the
+--- condition the repair exists to clear.
+function M.interaction_active()
+  local cause = M.interaction_reason()
+  return cause ~= nil and cause ~= "state-orphaned"
+end
+
+--- Clear an orphaned which-key interaction: drop the State object and take the
+--- (already invalid) window down with it. Feeds no keys and touches no mapping.
+---@return boolean cleared
+function M.reap_state()
+  local ok_s, State = pcall(require, "which-key.state")
+  if not ok_s then
+    return false
+  end
+  if State.state == nil then
+    return false
+  end
+  -- `State.stop()` nils the field and schedules the hide; the direct assignment
+  -- covers a stop() that bailed early, and the explicit hide covers the
+  -- scheduled one not having run yet when the rebuild happens in this tick.
+  pcall(State.stop)
+  State.state = nil
+  pcall(function()
+    require("which-key.view").hide()
+  end)
+  return true
+end
+
+--- Terminate a macro recording, which is the only way to let which-key
+--- re-attach its triggers while one is latched (`Triggers.schedule` refuses to
+--- drain `in_macro()`).
+---
+--- NOTE: this is the one place the family feeds a key, and it is reachable ONLY
+--- from an explicitly user-invoked repair. ADR-0091 §4 forbids synthetic
+--- keystrokes in the automatic path, and a recording the user is still building
+--- is theirs — closing it silently on an idle tick would destroy work.
+--- The `x` flag is load-bearing: it drains the typeahead NOW. Without it the
+--- `q` is merely queued, so `reg_recording()` is still set when this returns —
+--- and the rebuild that follows in the same tick cannot stick, because
+--- `Triggers.schedule` refuses to re-attach while `in_macro()`. The caller was
+--- then told the recording had been closed while it was still running.
+---
+--- Returns what actually happened, verified by re-reading the register rather
+--- than assumed from having fed the key.
+---@return boolean stopped, string? register
+function M.abort_macro()
+  local reg = vim.fn.reg_recording()
+  if reg == "" then
+    return false
+  end
+  pcall(vim.api.nvim_feedkeys, "q", "nx", false)
+  if vim.fn.reg_recording() ~= "" then
+    return false, reg
+  end
+  return true, reg
 end
 
 return M
