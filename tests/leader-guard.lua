@@ -769,6 +769,89 @@ do
   settle(300)
   ok("[6] *** a leader action fires after RepairLeaderKey ***", fired() == before + 1,
     ("%s -> %s"):format(tostring(before), tostring(fired())))
+
+  -- THE ADVERTISED SURFACE, DRIVEN. Everything above reaches the recovery
+  -- through Lua; the cell that mentions `:RepairLeaderKey` only proves the Ex
+  -- command is REGISTERED. Registration is not execution — a command whose
+  -- callback was wired to the wrong function, or which dropped the force flag,
+  -- would pass that cell and fail the operator in the incident. ADR-0091's
+  -- amendment authorizes the synthetic `q` at exactly this boundary, so this is
+  -- where it gets pinned (lector, PR #18 r0).
+  restore_from_broken()
+  lua([[
+    vim.api.nvim_set_current_buf(1)
+    vim.fn.setreg("w", "")
+    vim.cmd.normal("qw")
+  ]])
+  settle(50)
+  break_trigger()
+  orphan_state(30000)
+  local pre_cmd = lua_str([[
+    (function()
+      return { recording = vim.fn.reg_recording(), state = require("which-key.state").state ~= nil }
+    end)()
+  ]])
+  ok(
+    "[6] fixture: recording latched and state orphaned before the Ex command",
+    pre_cmd.recording == "w" and pre_cmd.state == true and trigger_count() == 0,
+    vim.json.encode(pre_cmd) .. " triggers=" .. tostring(trigger_count())
+  )
+  local via_cmd = lua_str([[
+    (function()
+      vim.cmd("RepairLeaderKey")
+      return {
+        recording = vim.fn.reg_recording(),
+        state = require("which-key.state").state ~= nil,
+        healthy = require("utils.leader_guard").check().healthy,
+      }
+    end)()
+  ]])
+  settle(150)
+  ok(
+    "[6] *** :RepairLeaderKey (the Ex command itself) recovers the trigger ***",
+    via_cmd.healthy == true,
+    vim.json.encode(via_cmd)
+  )
+  ok(
+    "[6] *** …closing the latched recording, which only the forced path may do ***",
+    via_cmd.recording == "",
+    vim.json.encode(via_cmd)
+  )
+  ok("[6] *** …and reaping the orphaned state ***", via_cmd.state == false, vim.json.encode(via_cmd))
+  -- The POPUP, not just the action. `<leader>ac` is a real global mapping, so it
+  -- fires whether or not the which-key trigger exists — a mutation that wired
+  -- `:RepairLeaderKey` to a non-forced repair left the trigger missing and the
+  -- action cell still passed. Only a bare `<leader>` that brings up the window
+  -- observes the thing this whole change repairs.
+  local before_cmd = fired()
+  input(" ac")
+  settle(300)
+  ok(
+    "[6] a leader action fires after the Ex command too",
+    fired() == before_cmd + 1,
+    ("%s -> %s"):format(tostring(before_cmd), tostring(fired()))
+  )
+  input(" ")
+  settle(300)
+  local popup = lua_str([[
+    (function()
+      local V = require("which-key.view")
+      return { window = V.valid() == true, triggers = (function()
+        local n = 0
+        for _, m in ipairs(vim.api.nvim_buf_get_keymap(0, "n")) do
+          if (m.desc or ""):find("which-key-trigger", 1, true) then n = n + 1 end
+        end
+        return n
+      end)() }
+    end)()
+  ]])
+  input("<Esc>")
+  settle(100)
+  ok(
+    "[6] *** bare <leader> opens the popup after the Ex command (the trigger is real) ***",
+    popup.window == true and popup.triggers > 0,
+    vim.json.encode(popup)
+  )
 end
 
 -- ── [7] the rebuild reason is the real one ────────────────────────────────

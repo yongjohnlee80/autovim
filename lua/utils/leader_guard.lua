@@ -40,7 +40,9 @@
 --     so the trigger stays missing AND the guard refuses to act. Both halves
 --     come from the same un-closed register — which is why closing it is the
 --     first thing the forced path does, and why automation must not do it
---     (a recording in progress is the user's work).
+--     (a recording in progress is the user's work). The forced path's single
+--     synthetic keystroke is authorized by ADR-0091's 2026-09-10 amendment,
+--     "operator-invoked macro termination", and by nothing wider.
 --   * an ORPHANED `which-key.state` object — set, no window on screen, stale
 --     past which-key's own timing — is not an interaction at all. The guard now
 --     reaps it and proceeds, which is the case that previously produced
