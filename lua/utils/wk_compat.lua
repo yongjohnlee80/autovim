@@ -234,8 +234,10 @@ end
 ---   "state-live"       `State.state` is set with no window yet, and young
 ---                      enough to be a deferred popup mid-flight — or of an
 ---                      unrecognized shape, which is treated as live because
----                      an unageable state is one we cannot prove is stale.
----   "state-orphaned"   `State.state` is set, NO window is valid, and it has
+---                      an unageable state is one we cannot prove is stale —
+---                      or the window's validity could not be observed at all,
+---                      which is an unknown and never an absence.
+---   "state-orphaned"   `State.state` is set, a window was OBSERVED absent, and it has
 ---                      been that way longer than `stale_after_ms()`. This is
 ---                      the deadlock; it is not an interaction.
 ---@return string? cause, string? detail
@@ -257,19 +259,32 @@ function M.interaction_reason()
     return nil
   end
 
-  -- The CALL is guarded, not just the require: `leader_guard.repair` documents
-  -- "never throws", and a future `View.valid()` that raises would break that
-  -- promise through this function (lector, PR #18 r0, non-blocking). An
-  -- unanswerable window question fails safe as "no window", which routes the
-  -- state to the age check rather than to an unconditional block.
+  -- THREE outcomes, not two: the window is up, the window is OBSERVED down, or
+  -- the question could not be asked at all. Only an observation of absence may
+  -- enter the age classifier below.
+  --
+  -- The first cut collapsed "could not ask" into "no window" and called that
+  -- failing safe. It is the opposite: a blind instrument reported the class it
+  -- cannot see as the one that gets acted on, so a `View.valid()` that raised
+  -- turned every aged State into `state-orphaned` and let AUTOMATIC repair reap
+  -- it without popup absence ever being established (lector, PR #18 r1, with a
+  -- probe: a 30s state plus a throwing `valid()` returned
+  -- `state-orphaned 30000ms with no window` — a claim about a window nobody
+  -- looked at). An unobservable window is an UNKNOWN, and an unknown blocks the
+  -- automatic path; the operator's forced path still clears it.
+  local window ---@type boolean? nil = unobservable, true = up, false = observed down
   local ok_v, View = pcall(require, "which-key.view")
-  local window_up = false
-  if ok_v and type(View.valid) == "function" then
+  if ok_v and type(View) == "table" and type(View.valid) == "function" then
     local ok_call, valid = pcall(View.valid)
-    window_up = ok_call and valid == true
+    if ok_call then
+      window = valid == true
+    end
   end
-  if window_up then
+  if window == true then
     return "popup-open"
+  end
+  if window == nil then
+    return "state-live", "window validity unavailable"
   end
 
   local started = type(State.state) == "table" and State.state.started
