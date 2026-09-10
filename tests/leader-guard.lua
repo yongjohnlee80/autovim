@@ -617,6 +617,84 @@ do
   ok("[6] *** and an orphan is not an active interaction ***",
     lua_str([[require("utils.wk_compat").interaction_active()]]) == false)
 
+  -- AN UNOBSERVABLE WINDOW IS NOT AN ABSENT ONE. The first version of the
+  -- validity hardening collapsed "could not ask" into "no window", so a
+  -- `View.valid()` that raised sent every aged State to the age classifier and
+  -- let the AUTOMATIC path reap it without popup absence ever being
+  -- established — a blind instrument reporting the class it cannot see as the
+  -- one that gets acted on (lector, PR #18 r1). Three surfaces, one demand:
+  -- never throw, never become auto-reapable.
+  for _, broken in ipairs({
+    { name = "a throwing valid()", code = [[V.valid = function() error("boom") end]] },
+    { name = "a non-function valid", code = [[V.valid = "nope"]] },
+    { name = "a missing view module", code = [[package.loaded["which-key.view"] = 42]] },
+  }) do
+    orphan_state(30000)
+    local blind = lua_str(string.format(
+      [[
+      (function()
+        local V = require("which-key.view")
+        local real_valid, real_mod = V.valid, package.loaded["which-key.view"]
+        %s
+        local okc, cause, detail = pcall(require("utils.wk_compat").interaction_reason)
+        local active = require("utils.wk_compat").interaction_active()
+        package.loaded["which-key.view"] = real_mod
+        V.valid = real_valid
+        return { threw = not okc, cause = okc and cause or tostring(cause), detail = detail, active = active }
+      end)()
+    ]],
+      broken.code
+    ))
+    ok(
+      ("[6] *** %s does not throw ***"):format(broken.name),
+      blind.threw == false,
+      vim.json.encode(blind)
+    )
+    ok(
+      ("[6] *** %s is UNKNOWN, never auto-reapable ***"):format(broken.name),
+      blind.cause == "state-live" and blind.active == true,
+      vim.json.encode(blind)
+    )
+  end
+  lua([[require("utils.wk_compat").reap_state()]])
+
+  -- And the automatic path stands down on that unknown, rather than reaping.
+  break_trigger()
+  orphan_state(30000)
+  local blind_repair = lua_str([[
+    (function()
+      local V = require("which-key.view")
+      local real = V.valid
+      V.valid = function() error("boom") end
+      local rep = require("utils.leader_guard").repair()
+      V.valid = real
+      return { repaired = rep.repaired, reason = rep.reason,
+               state = require("which-key.state").state ~= nil }
+    end)()
+  ]])
+  ok(
+    "[6] *** automatic repair does NOT reap a state whose window it cannot see ***",
+    blind_repair.repaired == false and blind_repair.state == true
+      and tostring(blind_repair.reason):find("window validity unavailable", 1, true) ~= nil,
+    vim.json.encode(blind_repair)
+  )
+  -- The operator still gets through: force does not depend on the observation.
+  local blind_forced = lua_str([[
+    (function()
+      local V = require("which-key.view")
+      local real = V.valid
+      V.valid = function() error("boom") end
+      local rep = require("utils.leader_guard").repair(nil, { force = true })
+      V.valid = real
+      return { healthy = rep.healthy, state = require("which-key.state").state ~= nil }
+    end)()
+  ]])
+  ok(
+    "[6] *** but the forced path still clears it ***",
+    blind_forced.healthy == true and blind_forced.state == false,
+    vim.json.encode(blind_forced)
+  )
+
   -- THE DEADLOCK: trigger genuinely gone AND an orphaned State latched.
   break_trigger()
   orphan_state(30000)
