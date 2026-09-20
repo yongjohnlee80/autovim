@@ -1,6 +1,6 @@
 # AutoVim
 
-An opinionated Neovim config built around AI pair programming (Claude Code + Codex), purpose-built for TypeScript and Go, with Omarchy / macOS / Ubuntu / Fedora all served from one branch.
+An opinionated Neovim config built around AI pair programming (Claude Code + Codex), purpose-built for TypeScript and Go, with macOS and every mainstream Linux family served from one branch.
 
 ## Installation
 
@@ -8,13 +8,28 @@ An opinionated Neovim config built around AI pair programming (Claude Code + Cod
 curl -fsSL https://raw.githubusercontent.com/yongjohnlee80/autovim/main/install.sh | bash
 ```
 
-The installer detects your OS (macOS, Arch, Debian / Ubuntu, Fedora), installs baseline dependencies via your native package manager, backs up any existing `~/.config/nvim` to a timestamped `*.bak-…` directory, clones the repo, and runs a headless `Lazy sync` so your first launch is already warmed up.
+The installer identifies your OS, installs the baseline dependencies, backs up any existing `~/.config/nvim` to a timestamped `*.bak-…` directory, clones the repo, and runs a headless `Lazy sync` so your first launch is already warmed up.
+
+**Supported platforms.** macOS (Homebrew), and the four Linux families below **including their derivatives** — detection reads `ID` and then `ID_LIKE` from `/etc/os-release`, so a respin that declares its parent is recognised without AutoVim having to know its name:
+
+| Family | Package manager | Recognised by |
+|---|---|---|
+| Arch | `pacman` | Arch, Manjaro, EndeavourOS, CachyOS, Garuda, ArcoLinux, … |
+| Debian / Ubuntu | `apt` | Debian, Ubuntu, Pop!_OS, Mint, Zorin, elementary, KDE neon, Raspberry Pi OS, … |
+| Fedora / RHEL | `dnf` | Fedora, Nobara, Rocky, AlmaLinux, RHEL, CentOS, … |
+| openSUSE / SUSE | `zypper` | Tumbleweed, Leap, SLES, … |
+
+A distribution that declares no recognisable `ID_LIKE` is **named as unidentified** rather than guessed at — the installer tells you exactly which packages to install and to re-run with `AUTOVIM_SKIP_DEPS=1`. Running the wrong package manager is worse than an honest refusal.
+
+**`mise` is preferred when you have it.** If [`mise`](https://mise.jdx.dev) is on your `PATH`, the dev tools — `neovim`, `ripgrep`, `fd`, `fzf`, `tmux`, `pandoc`, `go` — are installed through it, so every platform gets the same upstream versions instead of whatever its distro froze. The rest (`git`, a C compiler, `curl`, `rsync`) always comes from the system package manager, because mise does not carry them. If mise cannot provide a given tool, that one tool falls back to the distro package; the others still come from mise. `AUTOVIM_NO_MISE=1` opts out entirely.
 
 **Neovim 0.11.2 or newer is required.** Not a soft preference: LazyVim aborts
 outright below it — it prints `LazyVim requires Neovim >= 0.11.2`, waits for a
 keypress and quits, so an older Neovim gives you an editor that will not start.
-`install.sh` checks this and, on Debian/Ubuntu where apt's Neovim is usually too
-old, installs a current one via snap.
+`install.sh` enforces this on **every** platform after installing dependencies —
+not just Debian, which is where the check used to live. If what landed is still
+too old it installs a current Neovim via snap on Debian/Ubuntu, and otherwise
+tells you to use `mise use -g neovim@latest`, which needs no root.
 
 **One branch, every platform.** AutoVim used to ship a branch per environment (`main`, `mac-os`, `omarchy`) and install whichever matched. All of that now lives on `main` and is selected at runtime by [`lua/utils/platform.lua`](lua/utils/platform.lua), so macOS still gets its Mason-free `gopls` and Omarchy boxes still follow the system theme — from the same commit everyone else runs. OS detection in `install.sh` survives only to pick the right *system packages*, which genuinely differ per distro. See [Platform Behaviour](#platform-behaviour).
 
@@ -428,13 +443,14 @@ A typical session opens `:AutoAgents` (or `<F5>`) and lands on the admin slot. F
 
 - **A Go toolchain** — **required**, and installed by `install.sh` on every supported platform. autodb (the database backend, and AutoVim's only SQL surface since v0.4.0) compiles its daemon through a lazy `build` hook that runs `make build`; without `go` on `$PATH` that hook fails and `<leader>D*` reports "no autodb executable found". The Go LSP/debug tooling assumes a toolchain too.
 - **`gopls`** — the Go language server. On **macOS** AutoVim deliberately keeps this outside Mason, because new `gopls` releases can briefly outrun Mason's registry / Go proxy cache. If Go is installed but `gopls` is not on `$PATH`, AutoVim shows a startup warning with the install command. Linux keeps using Mason-managed `gopls`.
+- **`mise`** — **optional but preferred.** When present it supplies the dev tools on every platform (see [Installation](#installation)); when absent, everything comes from your distro's package manager and nothing else changes.
 - **`lazysql`** — **optional, and no longer AutoVim's SQL surface** (autodb is). Only needed if you kept the deprecated `<C-q>` float in your `lua/custom/` layer; the binary then has to be on your `$PATH`.
 
-| Tool | Arch | macOS |
-|---|---|---|
-| `go` | `pacman -S go` | `brew install go` |
-| `gopls` | managed by Mason | `go install golang.org/x/tools/gopls@latest` |
-| `lazysql` *(optional)* | `yay -S lazysql-bin` (AUR) | `go install github.com/jorgerojas26/lazysql@latest` |
+| Tool | mise (any platform) | Arch | macOS |
+|---|---|---|---|
+| `go` | `mise use -g go@latest` | `pacman -S go` | `brew install go` |
+| `gopls` | — | managed by Mason | `go install golang.org/x/tools/gopls@latest` |
+| `lazysql` *(optional)* | — | `yay -S lazysql-bin` (AUR) | `go install github.com/jorgerojas26/lazysql@latest` |
 
 autodb's setup — and what happened to `lazysql` and `nvim-dbee` — is in [SQL Without Leaving Neovim](#sql-without-leaving-neovim).
 
