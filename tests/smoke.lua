@@ -465,6 +465,83 @@ ok("every tracked path is within [A-Za-z0-9._/-]",
   #hostile == 0,
   "offending: " .. table.concat(hostile, ", "))
 
+io.stdout:write("\n[15] rust.lua overlay — per-binary platform acquisition (both gate directions)\n")
+-- ADR 0194 §2.6: the ONLY platform split in the Rust overlay is acquisition —
+-- rust-analyzer is rustup-managed on macOS (mason=false + system cmd) and
+-- Mason-managed on Linux, while codelldb is Mason-managed on both. The overlay
+-- returns its specs on every platform (the gate is INSIDE the opts functions),
+-- so assert the produced opts under each stubbed platform — a gate that never
+-- closes is invisible in a green run on one machine (convention #12).
+local function rust_specs()
+  local chunk, lerr = loadfile(root .. "/lua/plugins/rust.lua")
+  if not chunk then return nil, lerr end
+  local okc, res = pcall(chunk)
+  if not okc or type(res) ~= "table" then return nil, tostring(res) end
+  return res
+end
+local function frag(specs, plugin)
+  for _, s in ipairs(specs or {}) do
+    if s[1] == plugin then return s end
+  end
+  return nil
+end
+-- Resolve a fragment's `opts` (LazyVim calls the function form as fn(plugin, opts)
+-- and it mutates/returns opts). Returns the resolved opts table.
+local function resolved_opts(spec)
+  if not spec then return {} end
+  if type(spec.opts) == "table" then return spec.opts end
+  if type(spec.opts) == "function" then
+    local o = {}
+    local r = spec.opts(spec, o)
+    return type(r) == "table" and r or o
+  end
+  return {}
+end
+
+-- macOS: rustup owns rust-analyzer; Mason owns codelldb only.
+platform.probe.sysname = function() return "Darwin" end
+local rs_mac, mac_err = rust_specs()
+ok("rust.lua loads on macOS", type(rs_mac) == "table", tostring(mac_err))
+if type(rs_mac) == "table" then
+  local ra = (resolved_opts(frag(rs_mac, "neovim/nvim-lspconfig")).servers or {}).rust_analyzer or {}
+  ok("macOS: rust_analyzer is Mason-free (rustup)", ra.mason == false, tostring(ra.mason))
+  ok("macOS: rust_analyzer carries an explicit cmd",
+    type(ra.cmd) == "table" and type(ra.cmd[1]) == "string", vim.inspect(ra.cmd))
+  ok("rust_analyzer clippy check reaches the server settings",
+    ra.settings and ra.settings["rust-analyzer"] and ra.settings["rust-analyzer"].check
+      and ra.settings["rust-analyzer"].check.command == "clippy",
+    vim.inspect(ra.settings))
+  local ei_mac = resolved_opts(frag(rs_mac, "mason-org/mason.nvim")).ensure_installed or {}
+  ok("macOS: Mason installs codelldb", vim.tbl_contains(ei_mac, "codelldb"))
+  ok("macOS: Mason does NOT install rust-analyzer (rustup owns it)",
+    not vim.tbl_contains(ei_mac, "rust-analyzer"))
+end
+
+-- Linux: Mason owns both rust-analyzer and codelldb; no mason=false.
+platform.probe.sysname = function() return "Linux" end
+platform.probe.isdir = function() return false end
+platform.probe.executable = function() return false end
+local rs_lin, lin_err = rust_specs()
+ok("rust.lua loads on Linux", type(rs_lin) == "table", tostring(lin_err))
+if type(rs_lin) == "table" then
+  local ra = (resolved_opts(frag(rs_lin, "neovim/nvim-lspconfig")).servers or {}).rust_analyzer or {}
+  ok("Linux: rust_analyzer is Mason-managed (no mason=false override)", ra.mason == nil, tostring(ra.mason))
+  ok("Linux: rust_analyzer still carries clippy settings",
+    ra.settings and ra.settings["rust-analyzer"].check.command == "clippy")
+  local ei_lin = resolved_opts(frag(rs_lin, "mason-org/mason.nvim")).ensure_installed or {}
+  ok("Linux: Mason installs rust-analyzer", vim.tbl_contains(ei_lin, "rust-analyzer"))
+  ok("Linux: Mason installs codelldb", vim.tbl_contains(ei_lin, "codelldb"))
+end
+platform.reset_probes()
+
+-- Platform-agnostic contributions: rust+ron parsers and rustfmt on every host.
+local rs_any = rust_specs()
+local ts_ei = resolved_opts(frag(rs_any, "nvim-treesitter/nvim-treesitter")).ensure_installed or {}
+ok("rust.lua adds the rust Treesitter parser", vim.tbl_contains(ts_ei, "rust"))
+ok("rust.lua adds the ron Treesitter parser", vim.tbl_contains(ts_ei, "ron"))
+local cf_ft = resolved_opts(frag(rs_any, "stevearc/conform.nvim")).formatters_by_ft or {}
+ok("rust.lua registers rustfmt for rust", vim.tbl_contains(cf_ft.rust or {}, "rustfmt"))
+
 -- Assertion floor. Several sections above are guarded by `if` (the lock-file
 -- JSON block only asserts when the decode succeeded), and a section that stops
 -- contributing assertions otherwise reports a smaller green number rather than
@@ -476,7 +553,7 @@ ok("every tracked path is within [A-Za-z0-9._/-]",
 -- Registered through `ok()` deliberately, so a shortfall lands in the FAIL list
 -- and the printed summary rather than as a bare non-zero exit after a "0
 -- failed" line — which reads to the runner like a post-summary crash.
-local MIN_ASSERTIONS = 117
+local MIN_ASSERTIONS = 133
 do
   local ran = pass_count + fail_count
   ok(("assertion floor: ran %d, expected at least %d"):format(ran, MIN_ASSERTIONS),
