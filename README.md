@@ -249,8 +249,8 @@ Your project directories, worktrees and git repos are never touched.
 
 ## Adding Other Languages
 
-AutoVim ships **Go, TypeScript, and Python** wired up out of the box, but it is
-not locked to them. It's built on [LazyVim](https://www.lazyvim.org/), which
+AutoVim ships **Go, Rust, TypeScript, and Python** wired up out of the box, but
+it is not locked to them. It's built on [LazyVim](https://www.lazyvim.org/), which
 ships **40+ language "extras"** (Rust, C/C++, Java, Ruby, PHP, Elixir, Zig,
 Haskell, Kotlin, Scala, Clojure, Vue, Svelte, Astro, Tailwind, JSON, YAML,
 TOML, Docker, Terraform, Nix, and more). Enabling one pulls in that language's
@@ -258,7 +258,7 @@ TOML, Docker, Terraform, Nix, and more). Enabling one pulls in that language's
 and DAP adapter** together — so adding a language is normally a one-liner, not a
 research project.
 
-The three default extras live in [`lazyvim.json`](lazyvim.json):
+The default extras live in [`lazyvim.json`](lazyvim.json):
 
 ```json
 {
@@ -271,6 +271,15 @@ The three default extras live in [`lazyvim.json`](lazyvim.json):
 }
 ```
 
+> **Rust is shipped, but not via a LazyVim extra.** Rust support lives in the
+> tracked [`lua/plugins/rust.lua`](lua/plugins/rust.lua) overlay and
+> `auto-run.nvim`'s `rust` adapter — it wires the config-independent binaries
+> (`rust-analyzer`, `codelldb`, `rustfmt`, `clippy`) directly and deliberately
+> does **not** import `lazyvim.plugins.extras.lang.rust`, because that extra
+> pulls `rustaceanvim`, which owns the rust-analyzer client and DAP outside
+> AutoVim's conventions and collides with `auto-run.nvim`'s `<leader>d*` debug
+> namespace. See ADR 0194 in the knowledge base for the rationale.
+
 ### The update-safe way (recommended) — add it in `lua/custom/`
 
 Because `update.sh` **hard-resets tracked files** (see
@@ -281,15 +290,16 @@ to your own fork. To add a language that *survives updates*, import the extra
 from a spec under the gitignored `lua/custom/plugins/` overlay instead:
 
 ```lua
--- lua/custom/plugins/lang-rust.lua
+-- lua/custom/plugins/lang-zig.lua
 return {
-  { import = "lazyvim.plugins.extras.lang.rust" },
+  { import = "lazyvim.plugins.extras.lang.zig" },
 }
 ```
 
-Restart nvim (or `:Lazy sync`); Mason installs `rust-analyzer`, the Treesitter
-parser, and the formatter automatically. Same pattern for any
-`lazyvim.plugins.extras.lang.*` module.
+Restart nvim (or `:Lazy sync`); Mason installs `zls` (the Zig LSP), the
+Treesitter parser, and the formatter automatically. Same pattern for any
+`lazyvim.plugins.extras.lang.*` module. (Rust is the exception — it ships
+built-in; see the note above.)
 
 ### The quick way — `:LazyExtras`
 
