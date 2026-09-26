@@ -193,6 +193,21 @@ for _, os_ in ipairs({ "macos", "arch", "debian", "fedora", "suse" }) do
   ok(("pm_install handles %s"):format(os_), tonumber(body) and tonumber(body) >= 1, body)
 end
 
+io.stdout:write("\n[5a] Arch-family package installs never run a system upgrade\n")
+-- Drive the real pm_install through a fake sudo, so the test observes the
+-- command that would run without touching the host package manager. Every
+-- Arch derivative above resolves to this same 'arch' branch.
+local arch_install = sh_query([[sudo() { printf "sudo %s\n" "$*"; }; pm_install arch neovim go]])
+ok("Arch installs only the requested packages",
+  arch_install:find("sudo pacman -S --needed --noconfirm neovim go", 1, true) ~= nil,
+  arch_install)
+ok("Arch install does not refresh or upgrade the system",
+  arch_install:find("pacman -Syu", 1, true) == nil
+    and arch_install:find("pacman -Sy", 1, true) == nil
+    and arch_install:find("--sysupgrade", 1, true) == nil
+    and arch_install:find("--refresh", 1, true) == nil,
+  arch_install)
+
 io.stdout:write("\n[6] the mise / package-manager split is coherent\n")
 --
 -- The contract: mise is preferred for the tools it genuinely carries, and the

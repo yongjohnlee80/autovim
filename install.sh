@@ -183,7 +183,12 @@ pm_install() {
   log "Installing with the system package manager: $*"
   case "$os" in
     macos)  brew install "$@" ;;
-    arch)   sudo pacman -Syu --needed --noconfirm "$@" ;;
+    # Arch-family installs must never turn into a system upgrade. Omarchy's
+    # `omarchy update` owns snapshots and migrations; other Arch derivatives
+    # likewise own their update flow. Do not refresh the package DB here,
+    # either: an uncoordinated refresh can cause a partial upgrade.
+    arch)   sudo pacman -S --needed --noconfirm "$@" \
+              || die "Package install failed. Update with your distro's normal flow (Omarchy: omarchy update), then rerun AutoVim." ;;
     debian) sudo apt install -y "$@" ;;
     fedora) sudo dnf install -y "$@" ;;
     # --no-recommends keeps a zypper install from dragging in a desktop

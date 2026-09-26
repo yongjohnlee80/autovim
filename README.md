@@ -21,6 +21,8 @@ The installer identifies your OS, installs the baseline dependencies, backs up a
 
 A distribution that declares no recognisable `ID_LIKE` is **named as unidentified** rather than guessed at — the installer tells you exactly which packages to install and to re-run with `AUTOVIM_SKIP_DEPS=1`. Running the wrong package manager is worse than an honest refusal.
 
+On every Arch-family distribution, including Omarchy, AutoVim installs only its requested packages with `pacman -S --needed`. It does **not** refresh package databases or perform a system upgrade. If an update is needed, run your distro's normal update flow yourself first; on Omarchy, `omarchy update` includes its snapshot and migrations. Then rerun AutoVim's installer.
+
 **`mise` is preferred when you have it.** If [`mise`](https://mise.jdx.dev) is on your `PATH`, the dev tools — `neovim`, `ripgrep`, `fd`, `fzf`, `tmux`, `pandoc`, `go` — are installed through it, so every platform gets the same upstream versions instead of whatever its distro froze. The rest (`git`, a C compiler, `curl`, `rsync`) always comes from the system package manager, because mise does not carry them. If mise cannot provide a given tool, that one tool falls back to the distro package; the others still come from mise. `AUTOVIM_NO_MISE=1` opts out entirely.
 
 **Neovim 0.11.2 or newer is required.** Not a soft preference: LazyVim aborts
