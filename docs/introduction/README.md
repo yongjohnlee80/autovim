@@ -173,7 +173,7 @@ AutoVim includes several adjacent tools that fit the same workspace model:
 
 | Feature | Usage |
 |---|---|
-| Remote sync | `<leader>rp` pull, `<leader>rd` drift check, `<leader>rs` push, `<leader>rS` force push, `<leader>rc` remote command, `<leader>rl` log. |
+| Remote sync | `<leader>Rp` pull, `<leader>Rd` drift check, `<leader>Ru` push, `<leader>RS` force push, `<leader>Rc` remote command, `<leader>Ro` log. |
 | Go debugging | `<leader>dt` debug test, `<leader>dm` debug main, `<leader>dD` doctor, `<leader>dN` / `<leader>dM` scaffold launch configs. |
 | HTTP collections | `<leader>Rs` scaffold `.rest/`, `<leader>Rn` new scratch request, `<leader>Rr` run, `<leader>Rl` replay, `<leader>Ra` run all. |
 | Markdown panes | `<leader>m1`, `<leader>m2`, `<leader>m3`, `<leader>ma`, `<leader>ms`, `<leader>md` open or restore rendered docs. |
