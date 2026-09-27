@@ -548,7 +548,7 @@ ok("rust.lua registers rustfmt for rust", vim.tbl_contains(cf_ft.rust or {}, "ru
 -- went dead: auto-run (VeryLazy) replaced remote-sync's lazy key stubs, and
 -- the measured "live set" listed only the winners. This reads what the specs
 -- DECLARE instead — every executed `keys` entry (with its mode) plus literal
--- `vim.keymap.set("n", "<leader>…")` calls (kulala binds two in `init`).
+-- `vim.keymap.set("n", "<leader>…")` calls (a spec's `init` can bind keys too).
 io.stdout:write("\n[17] no two plugin specs declare the same key\n")
 do
   local owners = {}   -- "mode lhs" → { owner = true }

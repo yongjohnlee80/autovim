@@ -13,7 +13,7 @@
 --   <leader>gq / gQ remote-sync
 --   <leader>gw / gW / gA / gR / gC / gc / gt  worktree.nvim
 --   <leader>m*     markdown / md-harpoon
---   <leader>R*     REST (kulala)
+--   <leader>R*     remote-sync
 --   <leader>d*     Go debugging (gobugger)
 --   <F7>..<F10>    Go debug stepping
 

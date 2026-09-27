@@ -19,7 +19,6 @@
 | `images/remote-sync.png` | Remote-sync pull, drift, push workflow. |
 | `images/gobugger-debugger.png` | Go debug workflow built around launch.json and dap-view. |
 | `images/md-harpoon.png` | Six Markdown render panes. |
-| `images/kulala-http.png` | `.rest/` HTTP request workflow. |
 | `gifs/worktree-switch.gif` | Animated worktree switch storyboard. |
 | `gifs/gitsgraph-browse.gif` | Animated repo/commit selection storyboard. |
 | `gifs/auto-agents-orchestration.gif` | Animated agent orchestration storyboard. |
@@ -27,7 +26,6 @@
 | `gifs/remote-sync.gif` | Animated remote sync workflow. |
 | `gifs/gobugger.gif` | Animated debug workflow. |
 | `gifs/md-harpoon.gif` | Animated Markdown pane workflow. |
-| `gifs/kulala.gif` | Animated HTTP collection workflow. |
 
 ## Regenerate
 

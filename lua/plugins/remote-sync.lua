@@ -30,8 +30,8 @@ return {
     -- Under <leader>R, not <leader>r: <leader>r is auto-run.nvim's run
     -- namespace. Both used to bind rp / rc / rl there, and auto-run (VeryLazy)
     -- replaced these lazy stubs, so pull, log and remote-command had no working
-    -- key. Push is Ru (upload) and the log Ro (output) because kulala.lua holds
-    -- <leader>Rs and <leader>Rl.
+    -- key. Push is Ru (upload) and the log Ro (output): Rs and Rl were kulala's
+    -- (the HTTP client, dropped 2026-09-27) and are free now.
     keys = {
       -- Pull remote → local mirror, then auto-`git commit` the result as
       -- a snapshot baseline (only if the dir is a git repo). The committed
