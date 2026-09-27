@@ -542,6 +542,75 @@ ok("rust.lua adds the ron Treesitter parser", vim.tbl_contains(ts_ei, "ron"))
 local cf_ft = resolved_opts(frag(rs_any, "stevearc/conform.nvim")).formatters_by_ft or {}
 ok("rust.lua registers rustfmt for rust", vim.tbl_contains(cf_ft.rust or {}, "rustfmt"))
 
+-- ── key collisions between plugin specs ─────────────────────────────────
+-- A live keymap dump shows only the mapping that WON, so it cannot see one
+-- plugin shadowing another. That is how remote-sync's <leader>rp / rc / rl
+-- went dead: auto-run (VeryLazy) replaced remote-sync's lazy key stubs, and
+-- the measured "live set" listed only the winners. This reads what the specs
+-- DECLARE instead — every executed `keys` entry (with its mode) plus literal
+-- `vim.keymap.set("n", "<leader>…")` calls (kulala binds two in `init`).
+io.stdout:write("\n[17] no two plugin specs declare the same key\n")
+do
+  local owners = {}   -- "mode lhs" → { owner = true }
+  local function claim(mode, lhs, owner)
+    local k = mode .. " " .. lhs
+    owners[k] = owners[k] or {}
+    owners[k][owner] = true
+  end
+  local function walk(node, owner)
+    if type(node) ~= "table" then return end
+    if type(node[1]) == "string" and node[1]:find("/", 1, true) then owner = node[1] end
+    if type(node.keys) == "table" then
+      for _, e in ipairs(node.keys) do
+        if type(e) == "table" and type(e[1]) == "string" then
+          local modes = e.mode or "n"
+          if type(modes) == "string" then modes = { modes } end
+          for _, m in ipairs(modes) do claim(m, e[1], owner) end
+        end
+      end
+    end
+    for k, v in pairs(node) do
+      if k ~= "keys" and type(v) == "table" then walk(v, owner) end
+    end
+  end
+  for _, f in ipairs(specs) do
+    local chunk = loadfile(f)
+    local okc, res = pcall(chunk or function() end)
+    local fname = vim.fn.fnamemodify(f, ":t")
+    if okc and type(res) == "table" then walk(res, fname) end
+    local text = table.concat(vim.fn.readfile(f), "\n")
+    for lhs in text:gmatch('vim%.keymap%.set%(%s*"n"%s*,%s*"(<leader>[^"]+)"') do
+      claim("n", lhs, fname .. " (vim.keymap.set)")
+    end
+  end
+  -- An owner that is the same plugin twice (a spec file + its own init) is one
+  -- owner; compare by the repo when both claims carry it, else by file.
+  local clashes = {}
+  for k, set in pairs(owners) do
+    local list = vim.tbl_keys(set)
+    if #list > 1 then
+      table.sort(list)
+      clashes[#clashes + 1] = k .. " ← " .. table.concat(list, " AND ")
+    end
+  end
+  table.sort(clashes)
+  ok("no key is declared by two plugin specs", #clashes == 0, vim.inspect(clashes))
+
+  local rs_r, rs_R = {}, {}
+  for k, set in pairs(owners) do
+    if set["yongjohnlee80/remote-sync.nvim"] then
+      local lhs = k:match("^%S+ (.+)$")
+      if lhs:match("^<leader>r") then rs_r[#rs_r + 1] = lhs end
+      if lhs:match("^<leader>R") then rs_R[#rs_R + 1] = lhs end
+    end
+  end
+  table.sort(rs_R)
+  ok("remote-sync declares nothing under <leader>r (auto-run's run namespace)", #rs_r == 0, vim.inspect(rs_r))
+  ok("remote-sync's seven keys live under <leader>R",
+    vim.deep_equal(rs_R, { "<leader>RR", "<leader>RS", "<leader>Rc", "<leader>Rd", "<leader>Ro", "<leader>Rp", "<leader>Ru" }),
+    vim.inspect(rs_R))
+end
+
 -- Assertion floor. Several sections above are guarded by `if` (the lock-file
 -- JSON block only asserts when the decode succeeded), and a section that stops
 -- contributing assertions otherwise reports a smaller green number rather than
@@ -553,7 +622,7 @@ ok("rust.lua registers rustfmt for rust", vim.tbl_contains(cf_ft.rust or {}, "ru
 -- Registered through `ok()` deliberately, so a shortfall lands in the FAIL list
 -- and the printed summary rather than as a bare non-zero exit after a "0
 -- failed" line — which reads to the runner like a post-summary crash.
-local MIN_ASSERTIONS = 133
+local MIN_ASSERTIONS = 136
 do
   local ran = pass_count + fail_count
   ok(("assertion floor: ran %d, expected at least %d"):format(ran, MIN_ASSERTIONS),
