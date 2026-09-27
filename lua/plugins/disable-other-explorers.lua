@@ -1,9 +1,10 @@
 -- Disable competing file-explorers so auto-finder owns the directory-
 -- hijack flow on `nvim .` and the `<leader>e` keymap surface.
 --
--- 1) Upstream `nvim-neo-tree/neo-tree.nvim` — auto-finder.nvim (v0.1.3+)
---    bundles its own forked copy under
---    `auto-finder.nvim/lua/auto-finder/neotree/`. LazyVim's
+-- 1) Upstream `nvim-neo-tree/neo-tree.nvim` — auto-finder.nvim's files
+--    slot replaces it (in-house since auto-finder's ADR-0200; the old
+--    bundled fork is gone, so the two no longer collide — this is about
+--    LazyVim not opening a second explorer). LazyVim's
 --    `lazyvim.plugins.extras.editor.neo-tree` extra was removed from
 --    `~/.config/nvim/lazyvim.json`; this belt-and-braces spec makes
 --    sure nothing else can pull upstream back in.
