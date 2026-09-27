@@ -622,7 +622,11 @@ end
 -- Registered through `ok()` deliberately, so a shortfall lands in the FAIL list
 -- and the printed summary rather than as a bare non-zero exit after a "0
 -- failed" line — which reads to the runner like a post-summary crash.
-local MIN_ASSERTIONS = 136
+--
+-- 136 → 135 (2026-09-27): kulala.lua was removed, taking exactly one cell with
+-- it ("spec loads + returns a table: kulala.lua"); diffed against main, no
+-- other assertion changed.
+local MIN_ASSERTIONS = 135
 do
   local ran = pass_count + fail_count
   ok(("assertion floor: ran %d, expected at least %d"):format(ran, MIN_ASSERTIONS),
