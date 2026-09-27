@@ -174,7 +174,7 @@ AutoVim includes several adjacent tools that fit the same workspace model:
 | Feature | Usage |
 |---|---|
 | Remote sync | `<leader>Rp` pull, `<leader>Rd` drift check, `<leader>Ru` push, `<leader>RS` force push, `<leader>Rc` remote command, `<leader>Ro` log. |
-| Go debugging | `<leader>dt` debug test, `<leader>dm` debug main, `<leader>dD` doctor, `<leader>dN` / `<leader>dM` scaffold launch configs. |
+| Run, test & debug | `<leader>rt` / `rT` nearest test, `rf` / `rF` current file, `rp` / `rP` pick an entry point, `rl` / `rL` again — lowercase runs, uppercase debugs; `<leader>dc` resume, `di` / `do` / `dO` step. |
 | HTTP collections | `<leader>Rs` scaffold `.rest/`, `<leader>Rn` new scratch request, `<leader>Rr` run, `<leader>Rl` replay, `<leader>Ra` run all. |
 | Markdown panes | `<leader>m1`, `<leader>m2`, `<leader>m3`, `<leader>ma`, `<leader>ms`, `<leader>md` open or restore rendered docs. |
 | SQL | `<leader>D*` drives [autodb](https://github.com/yongjohnlee80/autodb), with the explorer in auto-finder's **dbase** section; it also runs standalone as a TUI. `<C-q>`/`lazysql` was retired in v0.3.10 and `nvim-dbee` in v0.4.0. |

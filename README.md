@@ -441,7 +441,7 @@ A typical session opens `:AutoAgents` (or `<F5>`) and lands on the admin slot. F
 - **Treesitter** -- syntax highlighting that understands your code, not just your brackets
 - **[nvim-dap](https://github.com/mfussenegger/nvim-dap) + [nvim-dap-view](https://github.com/igorlfs/nvim-dap-view) + [nvim-dap-go](https://github.com/leoluz/nvim-dap-go)** -- delve-powered Go debugging with a minimalist inspection panel. Breakpoints, step controls, watches, attach-to-process, and debug-test-under-cursor
 - **[worktree.nvim](https://github.com/yongjohnlee80/worktree.nvim)** -- in-editor worktree switcher I wrote. Hops between repos/worktrees under the directory you opened nvim in, with safety rails on add/remove and ghost-buffer cleanup. Comes with a lualine component and optional LSP re-anchor on switch
-- **[gobugger.nvim](https://github.com/yongjohnlee80/gobugger.nvim)** -- another plugin I wrote. Opinionated Go debugger: launch.json-driven, worktree-aware, delve-integrated, dap-view as the UI. Picker with session cache, scaffolder for new test/main entries, doctor command for diagnosing build/worktree issues
+- **[auto-run.nvim](https://github.com/yongjohnlee80/auto-run.nvim)** -- another plugin I wrote. One run / test / debug surface for Go, Rust and Jest: a config store per repo (`.auto-run/`), test discovery, DAP debugging, and env files applied to every launch. `launch.json` is an import source (`:AutoRun import`, or `I` in the debug pane). auto-finder's tests and debug panes show what will run — active worktree, env file, base, test config — and manage it in place.
 - **[autodb](https://github.com/yongjohnlee80/autodb)** -- another project I wrote: a Go database backend that replaced `lazysql` and then `nvim-dbee`. Connections encrypted at rest, `admin`/`editor`/`reader` roles, an audit trail of every executed script (account + IP), IP allowlisting, streaming results, and a refusal to run an `UPDATE`/`DELETE` with no `WHERE`. Driven from `<leader>D*`, with the explorer hosted in auto-finder's **dbase** section — and it runs standalone as a TUI, so the same tool works over SSH
 - **[kulala.nvim](https://github.com/mistweaverco/kulala.nvim)** -- HTTP client driven by `.http` files. Replaced `rest.nvim` (whose luarocks build chain was miserable on macOS). Per-project scaffold under `.rest/` via `<leader>Rs`, a single gitignored `http-client.private.env.json` with generic keys (`BASE_URL`, `USER_NAME`, `USER_PASS`, `API_KEY`), and `<leader>Rr` / `<leader>Rl` / `<leader>Ra` to run / replay / run-all
 - **[md-render.nvim](https://github.com/delphinus/md-render.nvim)** -- terminal-native Markdown previewer with rich layout: tables with box-drawing borders, callouts with icons + colored bars, fenced code blocks with treesitter syntax highlighting, OSC 8 hyperlinks, and inline images / video / Mermaid diagrams via the Kitty graphics protocol. The plugin's bundled preview is a single float; we layer [`yongjohnlee80/md-harpoon.nvim`](https://github.com/yongjohnlee80/md-harpoon.nvim) on top so `<leader>m{q,w,e,a,s,d}` host six coexisting floats arranged in a 2×3 grid — top row q/w/e, bottom row a/s/d — with per-slot cursor memory and a fuzzy file picker on `<leader>mf`. Replaces `glow.nvim`
@@ -487,34 +487,24 @@ Inside the panel:
 - The admin REPL has a step-by-step wizard for `agent add`, `agent edit`, `kb init`, `kb scope`, `project init`, `project import`. Every step shows `[current]`; press Enter to keep, type to change, **`<C-c>` to cancel**.
 - `<verb> ?` (or `<verb> <sub> ?`) opens a scrollable floating help window. `help open <verb>` opens the underlying markdown for hand-editing.
 
-### Debugging (Go + delve)
+### Run, test & debug (auto-run.nvim)
+
+`<leader>r` launches — lowercase runs, the same letter UPPERCASE debugs. `<leader>d` controls what is running.
 
 | Binding | What It Does |
 |---|---|
-| `F9` | Continue / start a debug session |
-| `F8` | Step over |
-| `F7` | Step into |
-| `F10` | Step out |
-| `<leader>db` | Toggle breakpoint |
-| `<leader>dB` | Conditional breakpoint |
-| `<leader>dC` | Clear all breakpoints |
-| `<leader>dc` | Continue |
-| `<leader>dr` | Run last |
-| `<leader>dq` | Terminate session |
-| `<leader>dR` | Restart |
-| `<leader>dv` | Toggle dap-view inspection panel |
-| `<leader>dw` | Add watch expression (also visual) |
-| `<leader>de` | Evaluate under cursor / selection |
-| `<leader>da` | Attach to a local process via delve (PID picker; spawns dlv as a child) |
-| `<leader>dA` | Attach to an already-running `dlv --headless --listen=:PORT` server. Prompts for port (default 2345). Pure connect-only adapter — no spawn race |
-| `<leader>dt` | Debug the Go test under cursor (merges `launch.json`) |
-| `<leader>dm` | Debug a main program via `mode=debug` config in `launch.json` |
-| `<leader>dM` | Scaffold a new `mode=debug` entry into the project-root `launch.json` |
-| `<leader>dN` | Scaffold a new `mode=test` entry into the project-root `launch.json` |
-| `<leader>dD` | Doctor — report launch.json / worktree / git state |
-| `<leader>dE` | Open the last failed-start stderr in a scratch buffer (auto-captured on `<leader>dm` / `<leader>dt` failure) |
-| `<leader>dF` | Fix worktree — `git worktree repair` from the bare |
-| `<leader>dL` | Reload the cached `launch.json` + clear session picks |
+| `<leader>rt` / `<leader>rT` | Run / debug the test nearest the cursor |
+| `<leader>rf` / `<leader>rF` | Run the current test file / choose a test in it to debug |
+| `<leader>rp` / `<leader>rP` | Pick an entry point (any config) and run / debug it — a test config runs as a test |
+| `<leader>rl` / `<leader>rL` | Again — repeat the last run / debug that actually launched |
+| `F9` | Continue |
+| `F8` / `F7` / `F10` | Step over / into / out |
+| `<leader>dc` | Continue — resume only; never starts a session |
+| `<leader>di` / `<leader>do` / `<leader>dO` | Step into / over / out (no F-keys needed) |
+| `<leader>db` / `<leader>dB` / `<leader>dC` | Toggle / conditional / clear-all breakpoints |
+| `<leader>dq` / `<leader>dR` | Terminate / restart the session |
+| `<leader>dv` / `<leader>dw` / `<leader>de` | dap-view panel / watch expression / evaluate (also visual) |
+| `<leader>da` / `<leader>dA` | Go buffers: attach to a local process via delve / to a running `dlv --headless` server |
 
 ### Worktree switching
 
@@ -582,35 +572,24 @@ Plus `:AutoAgentsTermSend <slot> <text>` (paste-safe via a 60ms-deferred CR) let
 | `<leader>gq` | Pick a remote project (any `.autovim-remote.json` under `~/Source/Remote/` or fallbacks) and `:cd` to it. Pushes the previous cwd onto an in-memory stack |
 | `<leader>gQ` | `:cd` back to where you were before the last `<leader>gq` (LIFO; mirrors worktree.nvim's `<leader>gw` / `<leader>gW` pattern within our own keyspace) |
 
-## Go Debugging with gobugger.nvim
+## Run, Test & Debug with auto-run.nvim
 
-The `<leader>d*` bindings are backed by [gobugger.nvim](https://github.com/yongjohnlee80/gobugger.nvim), an opinionated Go debugger I extracted out of this config. `<leader>dt` / `<leader>dm` don't just launch delve — they read `launch.json` from your project, pull out `buildFlags`, `env`, `envFile` (and for main-program debug: `program`, `args`, `cwd`), feed the resolved config to the delve run, and open `dap-view` as the inspection UI. Same file VSCode reads, so teammates on either editor share one config.
+The `<leader>r*` and `<leader>d*` bindings are [auto-run.nvim](https://github.com/yongjohnlee80/auto-run.nvim) (it replaced gobugger.nvim). What it runs lives in a per-repo store, `.auto-run/`: configs of kind `run`, `test` and `debug`, each owning its program, args, cwd, build flags, env and env files. `launch.json` is an import source — `:AutoRun import`, or `I` in the debug pane — so a VSCode config comes over once and is edited here after that.
 
-**Multi-config picker.** If `launch.json` has more than one `type=go, mode=test` (or `mode=debug`) entry — e.g., one per `cmd/*` entry point, or separate test configs for different build tags — you get a `vim.ui.select` picker on first use. The pick is cached for the session, keyed independently per mode. `:Gobugger pick [test|debug]` clears just the pick; `<leader>dL` (or `:Gobugger reload`) clears the file cache AND all picks.
+**The panes show what will run.** auto-finder's tests and debug panes open with a state header: the **active worktree** (auto-core's — `w` chooses it, and the cwd never changes), the **env file** applied to every launch (`s`), the **base** launch config merged under every launch (`b`), and in the tests pane the **test config** each runtime resolves to, with why (`c`). The debug pane lists entry points: `o` fans one out, `e` edits a property in place (env values stay masked), `a` adds one, `E` exports it to `launch.json`. The tests pane's Test configs section picks, clears and creates test configs.
 
-**Worktree-aware launch.json lookup.** Resolution walks upward from cwd, stopping at the first `.bare/` or `.git/` directory it encounters (project boundary). That means you can park one `launch.json` at the project root (next to `.bare/` or `.git/`) and every worktree inherits it — no copy-paste per branch. `${workspaceFolder}` still resolves to the current worktree's cwd, so `envFile = "${workspaceFolder}/.env"` gives each worktree its own env. A worktree-specific `.vscode/launch.json` overrides the shared one by winning the upward walk first.
+**Commands.** Six: `:AutoRun run` / `debug [name]` (a test config runs or debugs as a test), `stop [id]`, `env [select <path> | clear | profile [name|clear]]`, `doctor [--fix | --last-error]`, `import [name]`.
 
-**Scaffolding.** `<leader>dN` and `<leader>dM` scaffold new `mode=test` / `mode=debug` entries into the project-root `.vscode/launch.json` using the current buffer's package. Prompts for name, args (debug only), inline env (`KEY=VAL;KEY=VAL`), envFile, and buildFlags (pre-filled with `-buildvcs=false` because bare+worktree layouts break Go's VCS stamp).
+**Failed-start error capture.** When a debug session fails to start (missing binary, build error, bad args), the adapter's output is captured and surfaced as one error with a preview; `:AutoRun doctor --last-error` opens the full output.
 
-**Doctor & fix.** `<leader>dD` dumps a diagnostic report — launch.json path, project root, cwd `.git` status, go module root, all available configs per mode. `<leader>dF` runs `git worktree repair` from the bare when gitfile pointers go stale.
-
-**Failed-start error capture.** When `<leader>dm` / `<leader>dt` fail to initialize (missing binary, build error, bad args, etc.), gobugger captures the adapter's stderr / console output and surfaces it as a single ERROR notify with a 600-char preview. `<leader>dE` (or `:Gobugger last-error`) opens the full buffered output in a scratch buffer for scrolling — so you don't have to dig through `~/.cache/nvim/dap.log` to find out why delve refused to start.
-
-**Two attach modes.** `<leader>da` is the PID-picker flow from `nvim-dap-go` — gobugger spawns dlv itself, attaches to a local process, and takes over. On Linux boxes with `/proc/sys/kernel/yama/ptrace_scope = 1` this needs either `sudo` or ptrace to be relaxed. `<leader>dA` complements it: when dlv was already started externally (`dlv attach <pid> --headless --listen=:2345 --accept-multiclient` in a sibling terminal, or `/run <app> --dlv`), `<leader>dA` prompts for the port and TCP-connects via a pure connect-only adapter. No subprocess, no race.
+**Two attach modes (Go).** `<leader>da` is the PID-picker flow from `nvim-dap-go`: dlv is spawned and attaches to a local process. On Linux with `/proc/sys/kernel/yama/ptrace_scope = 1` this needs `sudo` or relaxed ptrace. `<leader>dA` connects to a dlv that is already running (`dlv attach <pid> --headless --listen=:2345 --accept-multiclient`), prompting for the port — no subprocess, no race.
 
 Typical test-debug flow:
 
-1. Open a Go test file, drop a breakpoint with `<leader>db`, cursor inside the test.
-2. `<leader>dt` — delve launches (falls back to dap-go defaults if no launch.json config exists), breakpoint hits, dap-view pops open.
-3. `<leader>de` on any expression to live-evaluate. `<leader>dw` to watch something across frames.
-4. `<leader>dr` re-runs with the same config. `<leader>dq` terminates.
-5. If the session didn't start at all, `<leader>dE` pops the captured stderr open.
-
-Typical main-debug flow (multi-entry-point repo):
-
-1. `<leader>dM` in any `cmd/*/main.go` to scaffold a `mode=debug` entry (or edit `.vscode/launch.json` by hand).
-2. `<leader>dm` — picker shows all main-program configs. Pick one; delve builds + launches it.
-3. Subsequent `<leader>dm` presses in the same session reuse the pick (no prompt). `:Gobugger pick debug` to re-prompt.
+1. Open a test file, drop a breakpoint with `<leader>db`, cursor inside the test.
+2. `<leader>rT` — the test's debugger launches with the repo's test config (env, build flags) applied; dap-view opens.
+3. `<leader>de` on any expression to evaluate it; `<leader>dw` to watch it across frames. Step with `<leader>di` / `do` / `dO` or the F-keys.
+4. `<leader>rL` debugs the same test again. `<leader>dq` terminates.
 
 ## Worktree Switching Without Rage
 
