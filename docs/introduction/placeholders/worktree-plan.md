@@ -30,5 +30,4 @@ The workspace has several related checkouts:
 ## Nice-To-Have Panels
 
 - A Go file with a visible breakpoint for `gobugger.nvim`.
-- A `.http` buffer with a selected request for `kulala.nvim`.
 - A Markdown render pane showing this document.

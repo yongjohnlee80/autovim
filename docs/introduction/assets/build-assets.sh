@@ -66,8 +66,8 @@ make_overview() {
     -fill "#a9b4c7" -font "$mono" -pointsize 21 -annotate +128+514 "slots 0..9 + T1..T4" \
     -fill "#f3f6fb" -font "$font" -pointsize 27 -annotate +500+474 "typed KB" \
     -fill "#a9b4c7" -font "$mono" -pointsize 21 -annotate +500+514 "shared/private/isolated" \
-    -fill "#f3f6fb" -font "$font" -pointsize 27 -annotate +128+668 "debug, HTTP, docs, remote sync" \
-    -fill "#a9b4c7" -font "$mono" -pointsize 21 -annotate +128+708 "Go + .http + Markdown + rsync" \
+    -fill "#f3f6fb" -font "$font" -pointsize 27 -annotate +128+668 "debug, docs, remote sync" \
+    -fill "#a9b4c7" -font "$mono" -pointsize 21 -annotate +128+708 "Go + Markdown + rsync" \
     "$out"
   panel_lines "$out" "1: jarvis working" "2: lector idle" "6: review float" "T2: tests running" "KB: shared ready"
 }
@@ -196,21 +196,6 @@ make_md() {
   panel_lines "$out" "<leader>m1..m3" "<leader>ma/ms/md" "find: <leader>mf" "browser: <leader>mb" "render: md-render"
 }
 
-make_kulala() {
-  local out="$IMG/kulala-http.png"
-  make_svg "$out" "kulala.nvim" "#7dd3fc" "HTTP collections"
-  magick "$out" \
-    -fill "#10151d" -draw "roundrectangle 104,238 914,780 12,12" \
-    -fill "#f3f6fb" -font "$mono" -pointsize 23 -annotate +136+304 "GET {{BASE_URL}}/v1/releases" \
-    -fill "#a9b4c7" -font "$mono" -pointsize 23 -annotate +136+354 "Authorization: Bearer {{API_KEY}}" \
-    -fill "#7dd3fc" -font "$mono" -pointsize 23 -annotate +136+452 "<leader>Rs scaffold .rest/" \
-    -fill "#9be9a8" -font "$mono" -pointsize 23 -annotate +136+502 "<leader>Rr run request" \
-    -fill "#ffd580" -font "$mono" -pointsize 23 -annotate +136+552 "<leader>Re select env" \
-    -fill "#a9b4c7" -font "$mono" -pointsize 21 -annotate +136+638 "private env file stays gitignored" \
-    "$out"
-  panel_lines "$out" "view: body" "env: dev" "replay: <leader>Rl" "run all: <leader>Ra" "scratch: <leader>Rn"
-}
-
 make_gif() {
   local name="$1"
   local title="$2"
@@ -242,7 +227,6 @@ make_admin
 make_remote
 make_gobugger
 make_md
-make_kulala
 
 make_gif "worktree-switch" "worktree.nvim" "#9be9a8" \
   "open picker: <leader>gw" \
@@ -278,11 +262,6 @@ make_gif "md-harpoon" "md-harpoon.nvim" "#c084fc" \
   "render slot 1" \
   "render slot a" \
   "restore six docs"
-
-make_gif "kulala" "kulala.nvim" "#7dd3fc" \
-  "scaffold .rest/" \
-  "run request" \
-  "replay last response"
 
 rm -rf "$TMP"
 
