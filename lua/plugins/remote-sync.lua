@@ -27,26 +27,31 @@ return {
     "yongjohnlee80/remote-sync.nvim",
     version = "^0.1.0",
     lazy = true,
+    -- Under <leader>R, not <leader>r: <leader>r is auto-run.nvim's run
+    -- namespace. Both used to bind rp / rc / rl there, and auto-run (VeryLazy)
+    -- replaced these lazy stubs, so pull, log and remote-command had no working
+    -- key. Push is Ru (upload) and the log Ro (output) because kulala.lua holds
+    -- <leader>Rs and <leader>Rl.
     keys = {
       -- Pull remote → local mirror, then auto-`git commit` the result as
       -- a snapshot baseline (only if the dir is a git repo). The committed
       -- HEAD is what the next drift check compares against.
-      { "<leader>rp", call("pull"), desc = "Remote: pull (rsync + auto-snap commit)" },
+      { "<leader>Rp", call("pull"), desc = "Remote: pull (rsync + auto-snap commit)" },
 
       -- Drift check (read-only). Compares the remote against HEAD via a
       -- `git archive HEAD | tar -x` materialization + dry-run rsync.
       -- Empty output = no drift, output = remote moved under us.
-      { "<leader>rd", call("drift"), desc = "Remote: drift report (no writes)" },
+      { "<leader>Rd", call("drift"), desc = "Remote: drift report (no writes)" },
 
       -- Push local → remote. Drift-gated (compares remote to HEAD, NOT to
       -- working tree — so unpushed local edits don't count). Auto-commits
       -- a pre-push snapshot, then auto-pulls (quietly) post-push to catch
       -- any concurrent-writer state.
-      { "<leader>rs", call("push"), desc = "Remote: push (refuses on remote drift; auto-snap before, auto-pull after)" },
+      { "<leader>Ru", call("push"), desc = "Remote: push (refuses on remote drift; auto-snap before, auto-pull after)" },
 
       -- Force-push — bypasses the drift gate. Confirms via vim.ui.select
       -- to discourage habitual use; the gate exists for a reason.
-      { "<leader>rS", function()
+      { "<leader>RS", function()
           vim.ui.select(
             { "no, cancel", "yes, force push" },
             { prompt = "Force push? Drift gate will be skipped — you may overwrite remote changes." },
@@ -64,16 +69,16 @@ return {
       -- Run a project-configured remote command (`commands` array in
       -- the JSON) over ssh. Typically a service reload after pushing
       -- config changes. Notifies + no-ops if no commands are configured.
-      { "<leader>rc", call("run_remote_cmd"), desc = "Remote: run configured command" },
+      { "<leader>Rc", call("run_remote_cmd"), desc = "Remote: run configured command" },
 
       -- Show the last sync's full output in a floating window. q / <Esc>
       -- to close.
-      { "<leader>rl", call("show_log"), desc = "Remote: show last sync log" },
+      { "<leader>Ro", call("show_log"), desc = "Remote: show last sync log" },
 
       -- Register a new project — wizard for host / remote_path / dest_path.
       -- Creates the dir and a default .autovim-remote.json. Doesn't pull;
-      -- :cd into the new dir + <leader>rp afterward.
-      { "<leader>rR", call("register"), desc = "Remote: register new project (wizard)" },
+      -- :cd into the new dir + <leader>Rp afterward.
+      { "<leader>RR", call("register"), desc = "Remote: register new project (wizard)" },
 
       -- Project navigation. Mirrors worktree.nvim's <leader>gw / <leader>gW
       -- pattern within our own keyspace (intentionally not reusing gW so
