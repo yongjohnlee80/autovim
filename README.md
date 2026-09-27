@@ -445,7 +445,7 @@ A typical session opens `:AutoAgents` (or `<F5>`) and lands on the admin slot. F
 - **[autodb](https://github.com/yongjohnlee80/autodb)** -- another project I wrote: a Go database backend that replaced `lazysql` and then `nvim-dbee`. Connections encrypted at rest, `admin`/`editor`/`reader` roles, an audit trail of every executed script (account + IP), IP allowlisting, streaming results, and a refusal to run an `UPDATE`/`DELETE` with no `WHERE`. Driven from `<leader>D*`, with the explorer hosted in auto-finder's **dbase** section — and it runs standalone as a TUI, so the same tool works over SSH
 - **[md-render.nvim](https://github.com/delphinus/md-render.nvim)** -- terminal-native Markdown previewer with rich layout: tables with box-drawing borders, callouts with icons + colored bars, fenced code blocks with treesitter syntax highlighting, OSC 8 hyperlinks, and inline images / video / Mermaid diagrams via the Kitty graphics protocol. The plugin's bundled preview is a single float; we layer [`yongjohnlee80/md-harpoon.nvim`](https://github.com/yongjohnlee80/md-harpoon.nvim) on top so `<leader>m{q,w,e,a,s,d}` host six coexisting floats arranged in a 2×3 grid — top row q/w/e, bottom row a/s/d — with per-slot cursor memory and a fuzzy file picker on `<leader>mf`. Replaces `glow.nvim`
 - **Floating playground terminals** — four toggleable floats on `F1`–`F4`, owned by [auto-agents.nvim](https://github.com/yongjohnlee80/auto-agents) (the `T1..T4` slots in the [Multi-agent panel](#multi-agent-panel) section). Each has its own persistent shell, marker-based lookup that survives `:cd`, and works from normal *and* terminal mode. `:AutoAgentsTermSend <slot> <text>` (paste-safe) lets agents drive them programmatically
-- **Remote sync** ([`yongjohnlee80/remote-sync.nvim`](https://github.com/yongjohnlee80/remote-sync.nvim)) -- a local-first / git-backed workflow for editing files on a shared remote without ever logging Claude or Codex into that remote. Drop a `.autovim-remote.json` at the root of a local mirror; `<leader>Rp` / `<leader>Rd` / `<leader>Ru` / `<leader>RS` / `<leader>Rc` / `<leader>Ro` drive pull / drift-check / push / force-push / configured remote command / log float. Drift detection compares **remote vs git HEAD** (not working tree), so unpushed local edits don't trigger spurious drift. See [Remote Development](#remote-development) for the workflow
+- **Remote sync** ([`yongjohnlee80/remote-sync.nvim`](https://github.com/yongjohnlee80/remote-sync.nvim)) -- a local-first / git-backed workflow for editing files on a shared remote without ever logging Claude or Codex into that remote. Drop a `.autovim-remote.json` at the root of a local mirror; `<leader>Rp` / `<leader>Rd` / `<leader>Rs` / `<leader>RS` / `<leader>Rc` / `<leader>Rl` drive pull / drift-check / push / force-push / configured remote command / log float. Drift detection compares **remote vs git HEAD** (not working tree), so unpushed local edits don't trigger spurious drift. See [Remote Development](#remote-development) for the workflow
 - **11 colorschemes** -- because choosing a theme is a form of self-expression (currently rotating through them like outfits)
 
 ## Dependencies
@@ -563,10 +563,10 @@ Plus `:AutoAgentsTermSend <slot> <text>` (paste-safe via a 60ms-deferred CR) let
 |---|---|
 | `<leader>Rp` | Pull remote → local mirror (rsync); auto-`git commit` the result as a snapshot. HEAD becomes "current remote state" — the baseline for the next drift comparison |
 | `<leader>Rd` | Drift report — compares remote against `git HEAD` (NOT working tree). So unpushed local edits never count as drift; only *the remote* changing since your last sync does |
-| `<leader>Ru` | Push local → remote: drift-check (refuses if remote drifted), commit working tree as `snap pre-push`, rsync push, quiet auto-pull. The pre-push commit means HEAD always reflects what was last sent — keeps drift detection honest across sessions |
+| `<leader>Rs` | Push local → remote: drift-check (refuses if remote drifted), commit working tree as `snap pre-push`, rsync push, quiet auto-pull. The pre-push commit means HEAD always reflects what was last sent — keeps drift detection honest across sessions |
 | `<leader>RS` | **Force push** — bypasses the drift gate. `vim.ui.select` confirms first because the gate exists for a reason (prevents silently overwriting remote changes) |
 | `<leader>Rc` | Run a project-configured remote command over ssh. Reads `commands: [{name, cmd}, ...]` from the JSON; multi-entry → picker, single entry → runs directly |
-| `<leader>Ro` | Show the last sync's full output in a floating window |
+| `<leader>Rl` | Show the last sync's full output in a floating window |
 | `<leader>RR` | Register a new project — wizard prompts for host / remote_path / dest_path (default: `cwd/<last-two-of-remote-path joined by ->` lowercased), creates the dir and writes a default `.autovim-remote.json` |
 | `<leader>gq` | Pick a remote project (any `.autovim-remote.json` under `~/Source/Remote/` or fallbacks) and `:cd` to it. Pushes the previous cwd onto an in-memory stack |
 | `<leader>gQ` | `:cd` back to where you were before the last `<leader>gq` (LIFO; mirrors worktree.nvim's `<leader>gw` / `<leader>gW` pattern within our own keyspace) |
@@ -804,7 +804,7 @@ Drop a `.autovim-remote.json` at the root of the local mirror dir:
 | `host` | yes | ssh destination (`user@host` or an alias from `~/.ssh/config`) |
 | `remote_path` | yes | Remote directory the local mirror tracks |
 | `exclude` | no | rsync `--exclude` list. Defaults exclude local metadata (`.git`, `.autovim-remote.json`, `.env`), build artifacts (`node_modules`, `vendor`, `.direnv`, `target`), OS noise (`.DS_Store`), and cert/key material (`*.pem`, `*.key`, `*.crt`, `*.cert`, `*.p12`, `*.pfx`, plus the `ssl` directory itself — covers the case where mode-700 cert dirs would error rsync's recursive scan). Override per project to expand or replace |
-| `delete` | no | Whether `<leader>Ru` passes `--delete-after` (clean mirror). Default `false` (additive push) |
+| `delete` | no | Whether `<leader>Rs` passes `--delete-after` (clean mirror). Default `false` (additive push) |
 | `detection` | no | One of `"lazy"` / `"safe"` / `"paranoid"` — controls how rsync decides what's changed (per-operation flag bundle). Default `"safe"`. See [Detection modes — fast push, safe pull](#detection-modes--fast-push-safe-pull) below |
 | `commands` | no | Array of `{name, cmd}` entries for `<leader>Rc`. Multi-entry → picker; single entry → runs directly. See snippet below |
 
@@ -827,7 +827,7 @@ Add `.autovim-remote.json` to your local mirror's `.gitignore` if there's anythi
 <leader>Rp         pull + auto-snapshot (HEAD = "current remote state")
 … edit files locally, no need to git commit between edits …
 <leader>Rd         drift check (HEAD vs remote — local edits don't count)
-<leader>Ru         push: drift check, auto-snap pre-push, rsync, auto-pull post-push
+<leader>Rs         push: drift check, auto-snap pre-push, rsync, auto-pull post-push
 <leader>RS         FORCE push (confirm prompt; bypasses drift gate)
 <leader>Rc         (optional) reload the service on the remote
 ```
@@ -846,13 +846,13 @@ Three references:
 | **Working tree** | Current local state, including uncommitted edits |
 | **Remote** | What's on the VPS right now |
 
-`<leader>Rd` and `<leader>Ru`'s drift check compare **remote vs HEAD**, NOT remote vs working tree. So:
+`<leader>Rd` and `<leader>Rs`'s drift check compare **remote vs HEAD**, NOT remote vs working tree. So:
 
 - ✅ Local has unpushed edits, remote unchanged → drift check is clean → push proceeds
 - ❌ Remote has changes since last pull, local unchanged → drift detected → push refused, pull-merge required
 - ❌ Both edited concurrently → drift detected → conflict, manual resolve via git
 
-`<leader>Ru` also commits a `pre-push` snap before the rsync, so `HEAD` always tracks what was last sent. That's how the model stays coherent across editing sessions: every successful push leaves `HEAD == remote`, and the next drift check uses that as its baseline. The full rationale for comparing against `HEAD` rather than the working tree is in [`docs/design-decisions/2026-04-26-head-based-drift-detection.md`](docs/design-decisions/2026-04-26-head-based-drift-detection.md).
+`<leader>Rs` also commits a `pre-push` snap before the rsync, so `HEAD` always tracks what was last sent. That's how the model stays coherent across editing sessions: every successful push leaves `HEAD == remote`, and the next drift check uses that as its baseline. The full rationale for comparing against `HEAD` rather than the working tree is in [`docs/design-decisions/2026-04-26-head-based-drift-detection.md`](docs/design-decisions/2026-04-26-head-based-drift-detection.md).
 
 If you genuinely need to push past a drift warning (e.g., you know the remote change is something you want to overwrite — perhaps a leftover state from a prior misconfiguration), use `<leader>RS` (capital). It prompts via `vim.ui.select` to confirm; the friction is intentional.
 
@@ -870,7 +870,7 @@ The three operations have asymmetric risk profiles, and the right detection algo
 
 - **Push is intentional.** You just edited something. You *want* the bumped mtime to signal "send this." If push detects too much (false positive), you wasted a few KB of bandwidth — recoverable. Push is fast and re-runnable.
 - **Pull is destructive on conflict.** If rsync's stat-based view says "remote file differs" because some container bumped a file's mtime, pull would silently overwrite your unpushed local edits. The cost of a false positive on pull is **lost work** — by far the most expensive failure mode in the workflow.
-- **Drift is the gate.** `<leader>Ru` runs a drift check first and refuses to push on any divergence. False positives here block legitimate pushes (forcing pull-then-push or `force=true`); false negatives let you push over a remote update you didn't see.
+- **Drift is the gate.** `<leader>Rs` runs a drift check first and refuses to push on any divergence. False positives here block legitimate pushes (forcing pull-then-push or `force=true`); false negatives let you push over a remote update you didn't see.
 
 So push wants speed; pull wants safety; drift wants accuracy. The default mode (`safe`) reflects this: stat-based for push, content-based (`--checksum`) for pull and drift. You can override per-project for either extreme — `lazy` if performance matters more than safety, `paranoid` if you've seen size+mtime equality lie about content.
 
@@ -886,7 +886,7 @@ So push wants speed; pull wants safety; drift wants accuracy. The default mode (
 
 The two real-world failure modes the design was built around, and which mode prevents which:
 
-| Mode | Phantom dir-mtime drift blocks `<leader>Ru`? | Phantom file-mtime drift can silently overwrite local edits on `<leader>Rp`? | "Same size+mtime but different content" can be missed? |
+| Mode | Phantom dir-mtime drift blocks `<leader>Rs`? | Phantom file-mtime drift can silently overwrite local edits on `<leader>Rp`? | "Same size+mtime but different content" can be missed? |
 |---|---|---|---|
 | `lazy` | ✗ Fixed (via universal `-O`) | ⚠️ Risk remains | ⚠️ Risk remains |
 | `safe` *(default)* | ✗ Fixed | ✗ Fixed (`--checksum` on pull) | ⚠️ Risk remains on push only (rare) |
