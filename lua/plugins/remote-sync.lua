@@ -30,8 +30,8 @@ return {
     -- Under <leader>R, not <leader>r: <leader>r is auto-run.nvim's run
     -- namespace. Both used to bind rp / rc / rl there, and auto-run (VeryLazy)
     -- replaced these lazy stubs, so pull, log and remote-command had no working
-    -- key. Push is Ru (upload) and the log Ro (output): Rs and Rl were kulala's
-    -- (the HTTP client, dropped 2026-09-27) and are free now.
+    -- key. (Push and the log were briefly Ru / Ro while kulala held Rs / Rl;
+    -- kulala was dropped 2026-09-27 and they are back on Rs / Rl.)
     keys = {
       -- Pull remote → local mirror, then auto-`git commit` the result as
       -- a snapshot baseline (only if the dir is a git repo). The committed
@@ -47,7 +47,7 @@ return {
       -- working tree — so unpushed local edits don't count). Auto-commits
       -- a pre-push snapshot, then auto-pulls (quietly) post-push to catch
       -- any concurrent-writer state.
-      { "<leader>Ru", call("push"), desc = "Remote: push (refuses on remote drift; auto-snap before, auto-pull after)" },
+      { "<leader>Rs", call("push"), desc = "Remote: push (refuses on remote drift; auto-snap before, auto-pull after)" },
 
       -- Force-push — bypasses the drift gate. Confirms via vim.ui.select
       -- to discourage habitual use; the gate exists for a reason.
@@ -73,7 +73,7 @@ return {
 
       -- Show the last sync's full output in a floating window. q / <Esc>
       -- to close.
-      { "<leader>Ro", call("show_log"), desc = "Remote: show last sync log" },
+      { "<leader>Rl", call("show_log"), desc = "Remote: show last sync log" },
 
       -- Register a new project — wizard for host / remote_path / dest_path.
       -- Creates the dir and a default .autovim-remote.json. Doesn't pull;
