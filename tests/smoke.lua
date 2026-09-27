@@ -607,7 +607,7 @@ do
   table.sort(rs_R)
   ok("remote-sync declares nothing under <leader>r (auto-run's run namespace)", #rs_r == 0, vim.inspect(rs_r))
   ok("remote-sync's seven keys live under <leader>R",
-    vim.deep_equal(rs_R, { "<leader>RR", "<leader>RS", "<leader>Rc", "<leader>Rd", "<leader>Ro", "<leader>Rp", "<leader>Ru" }),
+    vim.deep_equal(rs_R, { "<leader>RR", "<leader>RS", "<leader>Rc", "<leader>Rd", "<leader>Rl", "<leader>Rp", "<leader>Rs" }),
     vim.inspect(rs_R))
 end
 
