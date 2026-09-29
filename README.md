@@ -496,6 +496,7 @@ Inside the panel:
 | `<leader>rf` / `<leader>rF` | Run the current test file / choose a test in it to debug |
 | `<leader>rp` / `<leader>rP` | Pick an entry point (any config) and run / debug it — a test config runs as a test |
 | `<leader>rl` / `<leader>rL` | Again — repeat the last run / debug that actually launched |
+| `<leader>rw` | Working directory — a worktree (the `<leader>gw` list), then its root, a project folder or a typed directory. Tests are discovered there and runs / debugs start there; the cwd stays put (also `w` in the debug and tests panes) |
 | `F9` | Continue |
 | `F8` / `F7` / `F10` | Step over / into / out |
 | `<leader>dc` | Continue — resume only; never starts a session |
