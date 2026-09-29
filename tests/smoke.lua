@@ -626,6 +626,52 @@ end
 -- 136 → 135 (2026-09-27): kulala.lua was removed, taking exactly one cell with
 -- it ("spec loads + returns a table: kulala.lua"); diffed against main, no
 -- other assertion changed.
+-- ── [18] the debug stopped line is clearly visible, per theme ──────────
+io.stdout:write("\n[18] utils.debug_line — the stopped line's background, derived from the theme\n")
+do
+  local dl = require("utils.debug_line")
+  ok("[18] blend: halfway between white and black is 0x808080", dl.blend(0xffffff, 0x000000, 0.5) == 0x808080,
+    string.format("%06x", dl.blend(0xffffff, 0x000000, 0.5)))
+  ok("[18] blend: t = 0 is the background, t = 1 the accent",
+    dl.blend(0xf9e2af, 0x1e1e2e, 0) == 0x1e1e2e and dl.blend(0xf9e2af, 0x1e1e2e, 1) == 0xf9e2af)
+
+  local function get(name) return vim.api.nvim_get_hl(0, { name = name, link = false }) end
+  -- catppuccin-mocha's shape: debugPC darker than the background.
+  vim.api.nvim_set_hl(0, "Normal", { fg = 0xcdd6f4, bg = 0x1e1e2e })
+  vim.api.nvim_set_hl(0, "DiagnosticWarn", { fg = 0xf9e2af })
+  vim.api.nvim_set_hl(0, "debugPC", { bg = 0x11111b, fg = 0x123456 })
+  vim.api.nvim_set_hl(0, "DapStoppedLine", { link = "Visual" })
+  vim.api.nvim_set_hl(0, "Visual", { bg = 0x45475a, bold = true })
+  dl.install()
+  local want = dl.blend(0xf9e2af, 0x1e1e2e, dl.BLEND)
+  ok("[18] debugPC's background is the theme's warning colour blended into its background",
+    get("debugPC").bg == want, string.format("%06x want %06x", get("debugPC").bg or -1, want))
+  ok("[18] ... brighter than the editor background on every channel", (function()
+    local a, b = get("debugPC").bg, 0x1e1e2e
+    for shift = 16, 0, -8 do
+      if math.floor(a / 2 ^ shift) % 256 <= math.floor(b / 2 ^ shift) % 256 then return false end
+    end
+    return true
+  end)())
+  ok("[18] nothing else about debugPC changes (its foreground stays)", get("debugPC").fg == 0x123456, vim.inspect(get("debugPC")))
+  ok("[18] DapStoppedLine gets the same background and keeps what it linked to",
+    get("DapStoppedLine").bg == want and get("DapStoppedLine").bold == true, vim.inspect(get("DapStoppedLine")))
+  -- A theme change recomputes it.
+  vim.api.nvim_set_hl(0, "Normal", { fg = 0x000000, bg = 0xffffff })
+  vim.api.nvim_set_hl(0, "DiagnosticWarn", { fg = 0xdf8e1d })
+  vim.api.nvim_set_hl(0, "debugPC", { bg = 0xeeeeee })
+  vim.api.nvim_exec_autocmds("ColorScheme", { pattern = "test-light" })
+  ok("[18] a ColorScheme change recomputes it for the new theme",
+    get("debugPC").bg == dl.blend(0xdf8e1d, 0xffffff, dl.BLEND), string.format("%06x", get("debugPC").bg or -1))
+  -- A transparent theme (no Normal background) falls back to Visual's.
+  vim.api.nvim_set_hl(0, "Normal", { fg = 0xcdd6f4 })
+  vim.api.nvim_exec_autocmds("ColorScheme", { pattern = "test-transparent" })
+  ok("[18] a theme with no normal background falls back to Visual's", get("debugPC").bg == 0x45475a,
+    string.format("%06x", get("debugPC").bg or -1))
+  local autocmds = table.concat(vim.fn.readfile(root .. "/lua/config/autocmds.lua"), "\n")
+  ok("[18] config/autocmds.lua installs it", autocmds:find('require("utils.debug_line").install()', 1, true) ~= nil)
+end
+
 local MIN_ASSERTIONS = 135
 do
   local ran = pass_count + fail_count

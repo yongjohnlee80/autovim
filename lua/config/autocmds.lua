@@ -9,6 +9,10 @@
 
 require("utils.float_focus").install_auto_hide()
 
+-- The line a debug session is stopped on gets a clearly visible background,
+-- derived from each theme (utils/debug_line.lua).
+require("utils.debug_line").install()
+
 -- Persist the current colorscheme whenever it changes so that the next
 -- nvim start can hot-reload it (see `plugins/theme.lua`). Fires for
 -- picker selection, direct `:colorscheme` calls, and Snacks' cancel-path
