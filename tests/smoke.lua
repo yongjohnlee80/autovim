@@ -627,6 +627,25 @@ end
 -- it ("spec loads + returns a table: kulala.lua"); diffed against main, no
 -- other assertion changed.
 -- ── [18] the debug stopped line is clearly visible, per theme ──────────
+io.stdout:write("\n[19] Dart / Flutter — the LazyVim lang.dart extra is adopted; dartls comes from the SDK\n")
+-- ADR 0196 r3 §2.1: the extra passes the audit (no client / DAP / keymap owner),
+-- so it is adopted, and the overlay only marks dartls as SDK-provided.
+do
+  local okj, lj = pcall(vim.json.decode, table.concat(vim.fn.readfile(root .. "/lazyvim.json"), "\n"))
+  ok("lazyvim.json adopts lazyvim.plugins.extras.lang.dart",
+    okj and vim.tbl_contains(lj.extras or {}, "lazyvim.plugins.extras.lang.dart"))
+  local chunk, lerr = loadfile(root .. "/lua/plugins/dart.lua")
+  local okc, specs = pcall(chunk or function() error(lerr) end)
+  ok("dart.lua loads", okc and type(specs) == "table", tostring(specs))
+  local lsp
+  for _, s in ipairs(okc and specs or {}) do if s[1] == "neovim/nvim-lspconfig" then lsp = s end end
+  local dartls = lsp and type(lsp.opts) == "table" and (lsp.opts.servers or {}).dartls or {}
+  ok("dartls is SDK-provided (mason = false), no install attempted", dartls.mason == false, vim.inspect(dartls))
+  local only_lsp = true
+  for _, s in ipairs(okc and specs or {}) do if s[1] ~= "neovim/nvim-lspconfig" then only_lsp = false end end
+  ok("the overlay adds nothing but the dartls posture (no DAP / test owner)", only_lsp)
+end
+
 io.stdout:write("\n[18] utils.debug_line — the stopped line's background, derived from the theme\n")
 do
   local dl = require("utils.debug_line")
