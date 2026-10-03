@@ -1,6 +1,7 @@
 -- auto-run.nvim replaces gobugger.nvim (ADR-0048 Phase 4, parity gate
 -- passed 2026-07-06). Unified run-config store (.auto-run/ two-tier),
--- env profiles, test discovery (go + jest), execution strategies, DAP
+-- env profiles, test discovery (go, rust, jest/RTL, playwright, dart/flutter)
+-- plus a node runtime, execution strategies, DAP
 -- orchestration with per-repo breakpoint persistence, and the
 -- <leader>r* / <leader>d* keymap set via default_keymaps().
 -- launch.json is import-only (`:AutoRun import`); read-through covers

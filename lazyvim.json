@@ -3,7 +3,8 @@
     "lazyvim.plugins.extras.coding.blink",
     "lazyvim.plugins.extras.lang.python",
     "lazyvim.plugins.extras.lang.typescript",
-    "lazyvim.plugins.extras.lang.go"
+    "lazyvim.plugins.extras.lang.go",
+    "lazyvim.plugins.extras.lang.dart"
   ],
   "install_version": 8,
   "news": {
