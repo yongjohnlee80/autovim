@@ -7,7 +7,7 @@
 --
 -- Plugin source: remote release.
 --
--- Agents/KB are not configured here — the TOML store at
+-- Agents are not configured here — the TOML store at
 -- `<stdpath('config')>/.auto-agents-config/<project-key>.toml` (per-project)
 -- with fallback to `global.toml` is the source of truth. Open the panel
 -- (`:AutoAgents` / `<F5>`) and use the admin slot's wizard (`agent add`,
@@ -19,7 +19,9 @@ local opts = {
 return {
   {
     "yongjohnlee80/auto-agents",
-    version = "^0.2.0",
+    -- v0.3.0: agents take the project's primary KB from auto-core.kb
+    -- (ADR 1791209946); auto-agents no longer scaffolds or types KBs.
+    version = "^0.3.0",
     dependencies = {
       "folke/snacks.nvim",
       -- Soft dep: the diff-review bridge (per-agent `diff_review = true`).

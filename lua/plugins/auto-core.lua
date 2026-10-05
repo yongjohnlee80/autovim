@@ -1,13 +1,15 @@
 -- auto-core.nvim — foundation library for the AutoVim plugin family.
 --
 -- Plugin source: github.com/yongjohnlee80/auto-core.nvim. Pinned via
--- `version = "^0.2.0"` (caret) so lazy.nvim auto-tracks v0.2.x. v0.2.0 is
--- the release that added git.log / git.diff / ui.marks / ui.diffview, which
--- worktree.nvim ^0.5.0 and auto-finder ^0.4.0 both require.
+-- `version = "^0.3.0"` (caret) so lazy.nvim auto-tracks v0.3.x. v0.3.0 is
+-- the release that added auto-core.kb: the project's primary KB, the one
+-- resolver every family plugin (auto-agents ^0.3.0, auto-finder, worktree,
+-- AutoDoc) reads its KB root from (ADR 1791209946). v0.2.0 added git.log /
+-- git.diff / ui.marks / ui.diffview.
 -- patch + minor releases (additive-only per the auto-core-maintenance
 -- convention) and refuses to cross to v0.2+ unprompted.
 --
--- Other AutoVim plugins (auto-agents, auto-finder, md-harpoon,
+-- Other AutoVim plugins (auto-agents, auto-finder, autodoc, autodb,
 -- worktree) reference auto-core in their `dependencies` block by
 -- NAME ("auto-core.nvim") rather than redeclaring the spec — lazy.nvim
 -- merges by name and resolves to this top-level entry, so the version
@@ -43,9 +45,9 @@
 return {
   {
     "yongjohnlee80/auto-core.nvim",
-    -- Caret pin: tracks v0.1.x (auto-update within the minor line),
-    -- refuses v0.2+ until the bump is explicit.
-    version = "^0.2.0",
+    -- Caret pin: tracks v0.3.x (auto-update within the minor line),
+    -- refuses v0.4+ until the bump is explicit.
+    version = "^0.3.0",
     -- plenary is auto-core's only hard dep per ADR §"Resolutions" #3.
     dependencies = { "nvim-lua/plenary.nvim" },
     -- Consumer-owned keymap for the on-demand log viewer

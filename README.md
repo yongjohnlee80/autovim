@@ -443,7 +443,7 @@ A typical session opens `:AutoAgents` (or `<F5>`) and lands on the admin slot. F
 - **[worktree.nvim](https://github.com/yongjohnlee80/worktree.nvim)** -- in-editor worktree switcher I wrote. Hops between repos/worktrees under the directory you opened nvim in, with safety rails on add/remove and ghost-buffer cleanup. Comes with a lualine component and optional LSP re-anchor on switch
 - **[auto-run.nvim](https://github.com/yongjohnlee80/auto-run.nvim)** -- another plugin I wrote. One run / test / debug surface for Go, Rust and Jest: a config store per repo (`.auto-run/`), test discovery, DAP debugging, and env files applied to every launch. `launch.json` is an import source (`:AutoRun import`, or `I` in the debug pane). auto-finder's tests and debug panes show what will run — active worktree, env file, base, test config — and manage it in place.
 - **[autodb](https://github.com/yongjohnlee80/autodb)** -- another project I wrote: a Go database backend that replaced `lazysql` and then `nvim-dbee`. Connections encrypted at rest, `admin`/`editor`/`reader` roles, an audit trail of every executed script (account + IP), IP allowlisting, streaming results, and a refusal to run an `UPDATE`/`DELETE` with no `WHERE`. Driven from `<leader>D*`, with the explorer hosted in auto-finder's **dbase** section — and it runs standalone as a TUI, so the same tool works over SSH
-- **[md-render.nvim](https://github.com/delphinus/md-render.nvim)** -- terminal-native Markdown previewer with rich layout: tables with box-drawing borders, callouts with icons + colored bars, fenced code blocks with treesitter syntax highlighting, OSC 8 hyperlinks, and inline images / video / Mermaid diagrams via the Kitty graphics protocol. The plugin's bundled preview is a single float; we layer [`yongjohnlee80/md-harpoon.nvim`](https://github.com/yongjohnlee80/md-harpoon.nvim) on top so `<leader>m{q,w,e,a,s,d}` host six coexisting floats arranged in a 2×3 grid — top row q/w/e, bottom row a/s/d — with per-slot cursor memory and a fuzzy file picker on `<leader>mf`. Replaces `glow.nvim`
+- **[AutoDoc](https://github.com/yongjohnlee80/autodoc)** -- another project I wrote: the knowledge base, over a Go daemon that indexes it (lexical and semantic search, reranking) and runs standalone as a TUI. In AutoVim its kb drawer lives in auto-finder's **kb** section, `<leader>fk` searches the selected KB (the project's primary one by default), and its Markdown preview hosts six coexisting floats on `<leader>m*` — see [Markdown Preview](#markdown-preview). It replaced md-harpoon.nvim and md-render.nvim, and `glow.nvim` before them
 - **Floating playground terminals** — four toggleable floats on `F1`–`F4`, owned by [auto-agents.nvim](https://github.com/yongjohnlee80/auto-agents) (the `T1..T4` slots in the [Multi-agent panel](#multi-agent-panel) section). Each has its own persistent shell, marker-based lookup that survives `:cd`, and works from normal *and* terminal mode. `:AutoAgentsTermSend <slot> <text>` (paste-safe) lets agents drive them programmatically
 - **Remote sync** ([`yongjohnlee80/remote-sync.nvim`](https://github.com/yongjohnlee80/remote-sync.nvim)) -- a local-first / git-backed workflow for editing files on a shared remote without ever logging Claude or Codex into that remote. Drop a `.autovim-remote.json` at the root of a local mirror; `<leader>Rp` / `<leader>Rd` / `<leader>Rs` / `<leader>RS` / `<leader>Rc` / `<leader>Rl` drive pull / drift-check / push / force-push / configured remote command / log float. Drift detection compares **remote vs git HEAD** (not working tree), so unpushed local edits don't trigger spurious drift. See [Remote Development](#remote-development) for the workflow
 - **11 colorschemes** -- because choosing a theme is a form of self-expression (currently rotating through them like outfits)
@@ -730,52 +730,35 @@ nvim --server "$NVIM" --remote-expr 'v:lua.require("auto-agents.term").send(1, "
 
 ## Markdown Preview
 
-[md-render.nvim](https://github.com/delphinus/md-render.nvim) renders Markdown into a separate floating / tab / pager window — your editing buffer stays untouched (cf. `render-markdown.nvim`, which mutates the buffer in place). Tables get box-drawing borders, callouts get icons + colored bars, fenced code blocks pick up treesitter syntax highlighting, OSC 8 hyperlinks are clickable in compatible terminals, and inline images / video / Mermaid diagrams render via the Kitty graphics protocol.
+[AutoDoc](https://github.com/yongjohnlee80/autodoc)'s preview renders Markdown into separate floating windows; your editing buffer stays untouched (cf. `render-markdown.nvim`, which mutates the buffer in place). Headings, lists and task boxes, box-drawn tables, block quotes and GitHub callouts, fenced code (treesitter-highlighted, with a language label) and the frontmatter header are drawn in the float. A link shows its text, and an image a placeholder with its alt text and path: `gx` on either opens it. A Mermaid block is marked, and `<leader>mb` (or `B` inside a float) opens the document in the browser, rendered by `autodoc --export html`, diagrams drawn. A slot follows its file as it changes on disk.
 
 ### Six slots for side-by-side comparison
 
-The plugin's `MdPreview.show()` keeps a single module-level FloatWin and `close_if_valid`s it on every call, so calling it multiple times can't yield multiple coexisting floats. The slot manager lives in [`yongjohnlee80/md-harpoon.nvim`](https://github.com/yongjohnlee80/md-harpoon.nvim), which wraps md-render's library API (`FloatWin` / `display_utils` / `preview.build_content` — exposed for embedding per its "Usage as a library" section) into six per-slot floats laid out in a 2×3 grid:
+Six floats coexist, laid out in a 2×3 grid:
 
 ```text
-<leader>mq <leader>mw <leader>me   ┐
-<leader>ma <leader>ms <leader>md   ├── lowercase: smart "open / focus" — restores cursor
+<leader>m1 <leader>m2 <leader>m3   ┐
+<leader>ma <leader>ms <leader>md   ├── smart "open / focus" — restores cursor
                                    ┘
 
-<leader>mQ <leader>mW <leader>mE   ┐
-<leader>mA <leader>mS <leader>mD   ├── uppercase: explicit re-render → cursor at top
+<leader>m! <leader>m@ <leader>m#   ┐
+<leader>mA <leader>mS <leader>mD   ├── shifted: render the current buffer → cursor at top
                                    ┘
 
-<leader>mf ──> Fuzzy-find a markdown file → pick a panel
-<leader>mt ──> Full-screen tab preview
+<leader>mf ──> Find a markdown file under cwd → pick a panel
+<leader>mc ──> Close every float (sources and cursors are kept)
+<leader>mb ──> Open in the browser (the focused slot, or the current buffer)
 ```
 
-The lowercase keys collapse three behaviors into one keystroke:
+The focus keys collapse three behaviors into one keystroke:
 
 1. Float open in that slot → jump cursor into it
-2. Float closed but slot has a remembered source → reopen it with the cursor restored to where you left it (you dismissed it earlier with `q`)
+2. Float closed but slot has a remembered source → reopen it with the cursor restored to where you left it
 3. Slot never used → render the current buffer (so first use just works)
 
-Uppercase keys always render the current buffer into the slot, cursor at line 1 — explicitly "load a fresh document here". `<leader>mf` opens a fuzzy file picker over `*.md` under cwd (Snacks.picker when available) and prompts for a panel after selection — useful when you want a doc that isn't already in a buffer. Together this lets you compare up to six documents at once.
+The shifted keys always render the current buffer into the slot, cursor at line 1. `<leader>mf` lists the `*.md` files under cwd through `vim.ui.select` (which Snacks draws in AutoVim) and then asks for a panel. Inside a float, `q` / `<Esc>` dismiss it; the focus key brings it back where you left it.
 
-Press `q` / `<Esc>` / `<CR>` inside any float to dismiss it (plugin default). Bring it back later with the lowercase key — your cursor position is preserved.
-
-### Terminal compatibility
-
-| Terminal | Status |
-|---|---|
-| Ghostty / Kitty / WezTerm | Fully verified by upstream — text + images + video + Mermaid all work |
-| iTerm2 | Not in upstream's verified list. Text rendering (tables, callouts, code blocks, OSC 8 links) works anywhere. iTerm2 3.5+ has partial Kitty graphics support, but the plugin author hasn't validated it — images / video / Mermaid are "your mileage may vary" until that's confirmed |
-
-### Optional dependencies
-
-Text rendering needs nothing beyond Neovim. The rich-media features pull in a few external tools — install only what you actually need:
-
-| Tool | Purpose | Install |
-|---|---|---|
-| `ffmpeg` | JPEG/WebP → PNG conversion, video frame extraction | `pacman -S ffmpeg` / `brew install ffmpeg` |
-| ImageMagick (`magick`) | Same conversions; ffmpeg fallback | `pacman -S imagemagick` / `brew install imagemagick` |
-| Mermaid CLI (`mmdc`) | Render Mermaid blocks (falls back to slow `npx -y` if absent) | `npm install -g @mermaid-js/mermaid-cli` |
-| `pandoc` | Required for md-harpoon's `<leader>mb` — renders the current markdown buffer (or active slot's source) to standalone HTML and opens it in the default browser. Wikilinks (`[[page]]` / `![[asset]]`) are preprocessed so Obsidian-flavored notes render correctly | Installed by `install.sh` on macOS / Arch / Debian / Fedora; manual otherwise (`pacman -S pandoc` / `brew install pandoc` / `apt install pandoc`) |
+The commands behind the keys are `:AutodocPreviewFocus`, `:AutodocPreviewRender`, `:AutodocPreviewRenderPath`, `:AutodocPreviewFind`, `:AutodocPreviewCloseAll` and `:AutodocPreviewBrowser`. md-render's full-screen tab preview (`<leader>mt`) has no counterpart and is gone. The browser view needs no `pandoc`: AutoDoc renders the HTML itself.
 
 ## Remote Development
 

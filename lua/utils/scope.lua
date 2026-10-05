@@ -4,7 +4,7 @@
 -- resolve their root from the CURRENT BUFFER (`LazyVim.root()`,
 -- `LazyVim.root.git()`, which walk up for `.git`). The knowledge base is its own
 -- git repo, so the moment a KB document becomes the focused buffer — an agent
--- opening a `.todo-list/` task, an ADR, an md-harpoon preview — that walk-up
+-- opening a `.todo-list/` task, an ADR, a Markdown preview — that walk-up
 -- stops inside the KB and the feature silently retargets there. It has now bitten
 -- the Root-Dir pickers (`<leader><space>`, `<leader>ff`, `<leader>/`, …) and
 -- lazygit (`<leader>gg`), which is the tell that it belongs in one place rather
