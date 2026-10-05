@@ -72,7 +72,7 @@ FAMILY_PLUGINS_DEFAULT=(
   "auto-agents"
   "auto-finder.nvim"
   "auto-run.nvim"
-  "md-harpoon.nvim"
+  "autodoc"
   "worktree.nvim"
   "remote-sync.nvim"
 )

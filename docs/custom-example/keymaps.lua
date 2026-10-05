@@ -12,7 +12,8 @@
 --   <leader>r*     remote-sync
 --   <leader>gq / gQ remote-sync
 --   <leader>gw / gW / gA / gR / gC / gc / gt  worktree.nvim
---   <leader>m*     markdown / md-harpoon
+--   <leader>m*     markdown preview (AutoDoc)
+--   <leader>fk     search the KB (AutoDoc)
 --   <leader>R*     remote-sync
 --   <leader>d*     Go debugging (gobugger)
 --   <F7>..<F10>    Go debug stepping
