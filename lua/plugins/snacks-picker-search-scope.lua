@@ -8,7 +8,7 @@
 -- That is the wrong scope in an auto-agents session. The knowledge base
 -- (`$KB_ROOT`, e.g. `~/.config/nvim/.auto-agents-config/kb`) is its own git
 -- repo, so the moment a KB document becomes the focused buffer — an agent
--- opening a `.todo-list/` task, an ADR, an md-harpoon preview — the `.git`
+-- opening a `.todo-list/` task, an ADR, a Markdown preview — the `.git`
 -- walk-up stops inside the KB and every one of those keymaps silently
 -- narrows to it. The project's files simply stop showing up, with no
 -- indication why.
@@ -33,6 +33,7 @@
 -- and a second copy of the resolver would let them drift.
 local scope = require("utils.scope")
 local workspace_root = scope.workspace_root
+local kb_root = scope.kb_root
 
 ---Picker entry pinned to the workspace root.
 ---@param command string  a `LazyVim.pick` command name
@@ -48,11 +49,11 @@ end
 ---@return fun()
 local function pick_kb(command)
   return function()
-    local root = auto_core_var("KB_ROOT")
+    local root = kb_root()
     if not root then
       LazyVim.warn(
         "No knowledge base root resolved.\n"
-          .. "`$AUTO_AGENTS_KB_ROOT` is unset and `auto-agents.kb.root()` returned nothing.",
+          .. "This project has no primary KB: choose one in the kb drawer (P).",
         { title = "Search (KB Root)" }
       )
       return
