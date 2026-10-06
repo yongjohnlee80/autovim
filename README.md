@@ -413,7 +413,7 @@ I've tried other setups. I've clicked through menus. I've dragged and dropped. I
 
 Since auto-agents v0.3.0, a project's agents share **one KB: the project's primary KB**. You choose it in AutoDoc's kb drawer (`P`, with a confirmation), and auto-core keeps the record. AutoDoc owns everything else about the KB: the v2 layout and scaffold, search, the `KB_OPERATIONS.md` that tells agents how to use it, and `:AutodocKbMigrate` for an older KB. In the admin REPL, `kb` shows the primary KB; it creates nothing.
 
-Each spawn hands the agent the KB's root (also granted with `--add-dir`), its AutoDoc workspace when the primary names one, and its `KB_OPERATIONS.md` when the KB has one. auto-core first brings that document up to the newest copy the installed AutoDoc provided (auto-core v0.3.1, auto-agents v0.3.2 and AutoDoc v0.1.19 or later), so agents never work from a stale one. A project with no primary spawns its agents with no KB environment, and they ask you which KB to use.
+Each spawn hands the agent the KB's root (also granted with `--add-dir`), its AutoDoc workspace when the primary names one, and its `KB_OPERATIONS.md` when the KB has one. Before the spawn, auto-core refreshes an older, versioned copy of that document to the newest one the installed AutoDoc provided (auto-core v0.3.1, auto-agents v0.3.2 and AutoDoc v0.1.19 or later); a missing, unversioned or newer copy is left as it is. A project with no primary spawns its agents with no KB environment, and they ask you which KB to use.
 
 ### Navigation flow
 
