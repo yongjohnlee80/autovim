@@ -5,7 +5,7 @@
   "auto-finder.nvim": { "branch": "main", "commit": "1102886eb8fee03a5ca25490fc59f440145f31f4" },
   "auto-run.nvim": { "branch": "main", "commit": "2e8f071c9554e73e933bb6b5f867ad441c633551" },
   "autodb": { "branch": "main", "commit": "4a053fbf0fab4c6d67386a1cfb17fafcd706e670" },
-  "autodoc": { "branch": "main", "commit": "5910cfbf7caf0e20f19690c37c34cf4942af2ddf" },
+  "autodoc": { "branch": "main", "commit": "29a218a393fc9b72c2c100f2e49cd6480a2819fc" },
   "bamboo.nvim": { "branch": "master", "commit": "1309bc88bffcf1bedc3e84e7fa9004de93da774a" },
   "beacon.nvim": { "branch": "master", "commit": "098ff96c33874339d5e61656f3050dbd587d6bd5" },
   "blink-copilot": { "branch": "main", "commit": "7ad8209b2f880a2840c94cdcd80ab4dc511d4f39" },
