@@ -5,7 +5,7 @@
   "auto-finder.nvim": { "branch": "main", "commit": "1102886eb8fee03a5ca25490fc59f440145f31f4" },
   "auto-run.nvim": { "branch": "main", "commit": "2e8f071c9554e73e933bb6b5f867ad441c633551" },
   "autodb": { "branch": "main", "commit": "4a053fbf0fab4c6d67386a1cfb17fafcd706e670" },
-  "autodoc": { "branch": "main", "commit": "0143f7b15bb2c3bfa7f296bc1e4b104b939e77df" },
+  "autodoc": { "branch": "main", "commit": "e205a275f16ad9072483794649b2f7511cb1e405" },
   "bamboo.nvim": { "branch": "master", "commit": "1309bc88bffcf1bedc3e84e7fa9004de93da774a" },
   "beacon.nvim": { "branch": "master", "commit": "098ff96c33874339d5e61656f3050dbd587d6bd5" },
   "blink-copilot": { "branch": "main", "commit": "7ad8209b2f880a2840c94cdcd80ab4dc511d4f39" },
@@ -61,5 +61,5 @@
   "ts-comments.nvim": { "branch": "main", "commit": "a59d6092213447450191122c9346f309161504cb" },
   "venv-selector.nvim": { "branch": "main", "commit": "cc4bb3975de8835291f9bb45889e96c6b2795fc4" },
   "which-key.nvim": { "branch": "main", "commit": "3aab2147e74890957785941f0c1ad87d0a44c15a" },
-  "worktree.nvim": { "branch": "main", "commit": "767d1e27841ab4d87789242bef4ded4ab06866d0" }
+  "worktree.nvim": { "branch": "main", "commit": "ebd7db2a6c581e0197f92446b343be70f1531cdf" }
 }
