@@ -9,21 +9,32 @@
 -- tracks v0.1.x and refuses v0.2+ until the bump is explicit. v0.1.15 is
 -- the first release with the Neovim plugin (ADR 1791209945).
 --
--- ── Requires Go ────────────────────────────────────────────────────
--- The `build` hook compiles the daemon through the project's Makefile,
--- which sets `-buildvcs=false` (the family's bare+worktree layout trips
--- Go's nested-VCS rule) and the version stamp the daemon reports. If Go
--- is absent the hook fails loudly; install AutoDoc with Homebrew, mise or
--- `go install` instead and the plugin finds it on PATH.
+-- ── The binary ─────────────────────────────────────────────────────
+-- The plugin's build.lua installs bin/autodoc: the release binary built
+-- for the plugin's own tag, checksummed (no Go, no Command Line Tools;
+-- macOS's is built with cgo, so it keeps the FSEvents watcher). Off a tag,
+-- offline, or on a platform without one it falls back to `make build`,
+-- which needs Go. One binary per machine: make the TUI's `autodoc` on
+-- PATH this one (<leader>mX → versions says so, with the `ln -sf`), or a
+-- TUI of another build restarts the shared daemon as itself.
+--
+-- ── The daemon ─────────────────────────────────────────────────────
+-- A daemon older than the plugin is offered a restart as the plugin's
+-- build, once (ADR 1791209945 §3.1); <leader>mX restarts it at will.
 --
 -- ── What it brings ─────────────────────────────────────────────────
 -- * The kb drawer. auto-finder's `kb` section hosts it BY AVAILABILITY
 --   (auto-finder probes `autodoc.views.drawer`); without that section it
 --   opens in AutoDoc's own panel (:AutodocDrawer).
--- * <leader>fk searches the selected KB (the project's primary KB unless
---   another was selected in the drawer).
--- * The Markdown preview: six slots on <leader>m*. It replaces
---   md-harpoon.nvim and md-render.nvim, which AutoVim no longer installs.
+-- * <leader>m, the knowledge base: mf search the selected KB (the
+--   project's primary unless another was chosen), mF a document by name,
+--   mr recent files (shared with `autodoc --ui`), ml what links to this
+--   file, mk the kb drawer, mw choose the KB to search, mX maintenance.
+--   <leader>fk searches too.
+-- * The Markdown preview, on the same group: six slots (m1 m2 m3 ma ms md
+--   focus, m! m@ m# mA mS mD render), mp find a Markdown file under the
+--   cwd, mc close all, mb the browser. It replaces md-harpoon.nvim and
+--   md-render.nvim, which AutoVim no longer installs.
 -- * :AutodocKbMigrate, to move a KB to the v2 layout.
 --
 -- ── State ──────────────────────────────────────────────────────────
@@ -35,10 +46,11 @@ return {
   {
     "yongjohnlee80/autodoc",
     version = "^0.1.0",
-    build = "make build",
+    build = "build.lua",
     dependencies = { "auto-core.nvim" },
     cmd = {
       "AutodocDrawer", "AutodocSearch", "AutodocSelect", "AutodocKbMigrate",
+      "AutodocFiles", "AutodocRecent", "AutodocBacklinks", "AutodocMaintenance",
       "AutodocPreviewFocus", "AutodocPreviewRender", "AutodocPreviewRenderPath",
       "AutodocPreviewFind", "AutodocPreviewCloseAll", "AutodocPreviewBrowser",
     },
@@ -47,8 +59,15 @@ return {
     -- plugin on the first press; setup() (keys = true) then binds the same
     -- keys to their functions.
     keys = {
+      { "<leader>mf", "<cmd>AutodocSearch<cr>", desc = "KB: search (lexical + semantic + rerank)" },
+      { "<leader>mF", "<cmd>AutodocFiles<cr>", desc = "KB: find a document by name" },
+      { "<leader>mr", "<cmd>AutodocRecent<cr>", desc = "KB: recent files" },
+      { "<leader>ml", "<cmd>AutodocBacklinks<cr>", desc = "KB: what links to this file" },
+      { "<leader>mk", "<cmd>AutodocDrawer<cr>", desc = "KB: the kb drawer" },
+      { "<leader>mw", "<cmd>AutodocSelect<cr>", desc = "KB: choose the KB to search" },
+      { "<leader>mX", "<cmd>AutodocMaintenance<cr>", desc = "KB: maintenance (restart, install, versions)" },
       { "<leader>fk", "<cmd>AutodocSearch<cr>", desc = "Search the KB (AutoDoc)" },
-      { "<leader>mf", "<cmd>AutodocPreviewFind<cr>", desc = "Markdown: find file under cwd → pick panel" },
+      { "<leader>mp", "<cmd>AutodocPreviewFind<cr>", desc = "Markdown: find file under cwd → pick panel" },
       { "<leader>mc", "<cmd>AutodocPreviewCloseAll<cr>", desc = "Markdown: close all preview floats" },
       { "<leader>mb", "<cmd>AutodocPreviewBrowser<cr>", desc = "Markdown: open in the browser" },
       { "<leader>m1", "<cmd>AutodocPreviewFocus 1<cr>", desc = "Markdown: upper left (1) — focus / open" },
