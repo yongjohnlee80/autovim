@@ -404,19 +404,16 @@ I've tried other setups. I've clicked through menus. I've dragged and dropped. I
                    T1..T4 : playground floats (F1..F4) — shared shells, not agent slots
 ```
 
-- **Slot 0 — admin REPL.** A prompt buffer with a tokenizing dispatcher, tab completion, and a help system. This is where wizards run (`agent add`, `kb init`, `project import`, …) and where you read `<verb> ?` docs in a scrollable popup.
+- **Slot 0 — admin REPL.** A prompt buffer with a tokenizing dispatcher, tab completion, and a help system. This is where wizards run (`agent add`, `project import`, …) and where you read `<verb> ?` docs in a scrollable popup.
 - **Slots 1..N — agents.** Configured agents (Claude / Codex / Gemini / Copilot / generic) **all sharing the one right-side panel**, switched by buffer. Empty slots fall back to `$SHELL`.
 - **Configurable count.** `N` is `panel.slot_count` — **default 5, adjustable 2–9**. Grow or shrink it live from the admin REPL with `slot add` / `slot remove` (persisted to the TOML). The old slots-6-9 sub-agent *float* tier was retired in the v0.1.24 flat-slot refactor — ephemeral helpers and reviewers are now just extra slots in the same panel.
 - **T1..T4 — playground terminals.** A separate set of shared shells (not agent slots) for you and the agents; `term send <N> <text>` is paste-safe so an agent can dispatch a build into T2 without leaving its panel.
 
-### Knowledge base (typed)
+### Knowledge base
 
-Every project's KB sits at one of two paths depending on where the agent's config came from:
+Since auto-agents v0.3.0, a project's agents share **one KB: the project's primary KB**. You choose it in AutoDoc's kb drawer (`P`, with a confirmation), and auto-core keeps the record. AutoDoc owns everything else about the KB: the v2 layout and scaffold, search, the `KB_OPERATIONS.md` that tells agents how to use it, and `:AutodocKbMigrate` for an older KB. In the admin REPL, `kb` shows the primary KB; it creates nothing.
 
-- **Global agents** (defined in `<stdpath('config')>/.auto-agents-config/global.toml`) share **one** KB at `<stdpath('config')>/.auto-agents-config/kb`. Jarvis-everywhere reads the same conventions in every project.
-- **Project agents** (defined in a per-project TOML) get a project-local KB at `<project>/.auto-agents/kb`.
-
-Override either with `[kb].root = "/abs/path"` in the TOML. KBs are typed: pick **coding** (default for nvim users — codebase conventions, ADRs, review playbooks), **wiki** (Zettelkasten-flavored durable knowledge), **research** (papers / hypotheses / experiments), **ops** (alerts / runbooks / postmortems), **general** (minimal seed), or **custom** (you supply the seed `.md`). Each type ships an immutable `raw/` and a per-kind contract document (`AGENTS.md`, with `CLAUDE.md` and `GEMINI.md` pointers) that the agent auto-loads at spawn. `kb ingest` produces a deterministic worklist of new / edited / current / orphan raw files; `--attach <N>` pipes the worklist to slot N.
+Each spawn hands the agent the KB's root (also granted with `--add-dir`), its AutoDoc workspace and its `KB_OPERATIONS.md`. auto-core first brings that document up to the installed AutoDoc's copy, so agents never work from a stale one. A project with no primary spawns its agents with no KB environment, and they ask you which KB to use.
 
 ### Navigation flow
 
@@ -424,8 +421,8 @@ A typical session opens `:AutoAgents` (or `<F5>`) and lands on the admin slot. F
 
 - **Direct slot focus.** `<leader>a0`..`a9` jumps to that slot. Inside admin, the same digits work in normal mode (no leader needed).
 - **Navigation dock.** `<F12>` opens a small right-edge float listing every slot plus the editor. Press a digit to jump, `e` to return to the editor, anything else to dismiss. Mode-safe — terminal mode doesn't leak into editor buffers. (`<F6>` used to open this too; as of v0.4.10 it opens the [central navigation modal](#navigation-c-g) instead, which reaches the same slots plus everything else.)
-- **Help on demand.** `<verb> ?` (e.g. `agent add ?`, `kb init ?`) pops a scrollable floating help window. `help open <verb>` opens the underlying markdown if you want to edit it.
-- **Wizards.** `agent add`, `agent edit`, `kb init`, `project init` walk you through prompts inside the admin REPL. `<C-c>` aborts at any step. Default for `kind = "claude"`: `diff_review = true` so that agent's edits open in the diff-review queue; additional/helper agents can set `diff_review = false` so their edits stay in their own terminals.
+- **Help on demand.** `<verb> ?` (e.g. `agent add ?`, `kb ?`) pops a scrollable floating help window. `help open <verb>` opens the underlying markdown if you want to edit it.
+- **Wizards.** `agent add`, `agent edit`, `project init` walk you through prompts inside the admin REPL. `<C-c>` aborts at any step. Default for `kind = "claude"`: `diff_review = true` so that agent's edits open in the diff-review queue; additional/helper agents can set `diff_review = false` so their edits stay in their own terminals.
 
 ### Diff-review bridge
 
@@ -434,7 +431,7 @@ A typical session opens `:AutoAgents` (or `<F5>`) and lands on the admin slot. F
 ## What's Inside
 
 - **[LazyVim](https://www.lazyvim.org/)** -- because life's too short to configure everything from scratch, but too long to use someone else's config without tweaking it
-- **[auto-agents.nvim](https://github.com/yongjohnlee80/auto-agents)** -- another plugin I wrote: multi-agent orchestration panel. One right-side window holds slot **0** (an admin REPL with a step-by-step wizard) plus a **configurable number of agent slots** (default 5, up to 9, grown/shrunk live with `slot add` / `slot remove`) — all in the same panel, switched by buffer. Plus four playground terminals **T1..T4** mapped to F1..F4. Specialized **knowledge-base** per project (typed: coding / wiki / research / ops / library / general / custom) with an immutable `raw/` and shared/private/isolated scopes. TOML-driven config under `<stdpath('config')>/.auto-agents-config/` survives `:cd`. `<F5>` toggles the panel; the admin's wizard creates agents, projects, and KBs by walking you through prompts. See [Multi-agent panel](#multi-agent-panel) below
+- **[auto-agents.nvim](https://github.com/yongjohnlee80/auto-agents)** -- another plugin I wrote: multi-agent orchestration panel. One right-side window holds slot **0** (an admin REPL with a step-by-step wizard) plus a **configurable number of agent slots** (default 5, up to 9, grown/shrunk live with `slot add` / `slot remove`) — all in the same panel, switched by buffer. Plus four playground terminals **T1..T4** mapped to F1..F4. Agents share the project's **primary knowledge base**, chosen in AutoDoc's kb drawer and kept by auto-core; each spawn hands them its root, its AutoDoc workspace and its `KB_OPERATIONS.md`, brought up to the installed AutoDoc's copy first. TOML-driven config under `<stdpath('config')>/.auto-agents-config/` survives `:cd`. `<F5>` toggles the panel; the admin's wizard creates agents and projects by walking you through prompts. See [Multi-agent panel](#multi-agent-panel) below
 - **[auto-finder.nvim](https://github.com/yongjohnlee80/auto-finder)** -- another plugin I wrote: the left-side finder panel and the family's second surface for shared state. Beyond file/mark navigation it hosts a **todo / task-management view** over the `auto-core.todo` store (bucket-grouped open/in-progress/deferred/completed/archived tasks, single-key actions to add/status/assign-to-agent, expandable frontmatter, event-driven refresh) — including a `.todo-list/automated/` **scheduled-task engine** (cron-driven agent tasks) — plus a **dbase section** hosting [autodb](https://github.com/yongjohnlee80/autodb)'s explorer (connections, workspaces, notes and script history, with at-rest encryption and per-user roles owned by autodb's own backend)
 - **[claudecode.nvim](https://github.com/coder/claudecode.nvim)** -- soft dependency that auto-agents leans on for the **diff-review bridge**. Per-agent `diff_review = true` in the TOML routes that agent's proposed edits to a diff split in the editor (left current, right proposed; edit the right side, `:w` accepts, close rejects)
 - **LSP + Mason** -- language servers managed properly, so Go and TypeScript just work
@@ -483,7 +480,7 @@ autodb's setup — and what happened to `lazysql` and `nvim-dbee` — is in [SQL
 
 Inside the panel:
 
-- The admin REPL has a step-by-step wizard for `agent add`, `agent edit`, `kb init`, `kb scope`, `project init`, `project import`. Every step shows `[current]`; press Enter to keep, type to change, **`<C-c>` to cancel**.
+- The admin REPL has a step-by-step wizard for `agent add`, `agent edit`, `project init`, `project import`. Every step shows `[current]`; press Enter to keep, type to change, **`<C-c>` to cancel**.
 - `<verb> ?` (or `<verb> <sub> ?`) opens a scrollable floating help window. `help open <verb>` opens the underlying markdown for hand-editing.
 
 ### Run, test & debug (auto-run.nvim)
