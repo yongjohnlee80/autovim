@@ -1,7 +1,9 @@
 -- auto-finder.nvim — multi-section side panel (files, repos, config, …).
 --
 -- Plugin source: github.com/yongjohnlee80/auto-finder.nvim. Pinned via
--- `version = "^0.5.0"` (caret). v0.5.0 retired the neo-tree fork: the files
+-- `version = "^0.6.0"` (caret). v0.6.0 shows the owning workspace's variables in
+-- the todos panel's Vars section (ADR 1792132105); it needs auto-core v0.5.0 and
+-- AutoDoc v0.1.53. v0.5.0 retired the neo-tree fork: the files
 -- and buffers slots are in-house (ADR-0200). v0.4.0 rebuilt the repos panel on
 -- worktree.nvim and retired nvim-dbee. The 0.2 line was the auto-core consumer
 -- migration (panel singleton via auto-core.ui.panel, state via
@@ -31,7 +33,7 @@
 return {
   {
     "yongjohnlee80/auto-finder.nvim",
-    version = "^0.5.0",
+    version = "^0.6.0",
     -- Dependencies:
     --   - web-devicons: file icons (optional for the plugin, wanted here)
     --   - auto-core.nvim: hard dep (panel / state / log / section /

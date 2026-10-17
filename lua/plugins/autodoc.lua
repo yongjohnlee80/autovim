@@ -6,8 +6,10 @@
 --
 -- ── Pin ────────────────────────────────────────────────────────────
 -- Caret on the minor line, per the autovim-release-workflow pin policy:
--- tracks v0.1.x and refuses v0.2+ until the bump is explicit. v0.1.15 is
--- the first release with the Neovim plugin (ADR 1791209945).
+-- tracks v0.1.x and refuses v0.2+ until the bump is explicit. The floor is
+-- v0.1.53: protocol 24, the workspace-owned variables auto-core v0.5.0 reads
+-- (ADR 1792132105). v0.1.15 was the first release with the Neovim plugin
+-- (ADR 1791209945).
 --
 -- ── The binary ─────────────────────────────────────────────────────
 -- The plugin's build.lua installs bin/autodoc: the release binary built
@@ -45,7 +47,7 @@
 return {
   {
     "yongjohnlee80/autodoc",
-    version = "^0.1.0",
+    version = "^0.1.53",
     build = "build.lua",
     dependencies = { "auto-core.nvim" },
     cmd = {
