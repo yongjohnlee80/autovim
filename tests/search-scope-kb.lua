@@ -54,5 +54,15 @@ ran, err = pcall(keys["<leader>ff"])
 ok("the workspace pickers open at auto-core's session workspace, not $WORKSPACE",
   ran and opened[3] and opened[3].cwd == "/ws", err or vim.inspect(opened[3]))
 
+-- an empty or failing answer from auto-core is no root: the pickers open at the cwd
+package.loaded["auto-core.todo.paths"] = { workspace_root = function() return "" end }
+ran, err = pcall(keys["<leader>ff"])
+ok("an empty workspace root from auto-core falls back to the cwd",
+  ran and opened[4] and opened[4].cwd == vim.fn.getcwd(), err or vim.inspect(opened[4]))
+package.loaded["auto-core.todo.paths"] = { workspace_root = function() error("no session") end }
+ran, err = pcall(keys["<leader>ff"])
+ok("a failing workspace root from auto-core falls back to the cwd",
+  ran and opened[5] and opened[5].cwd == vim.fn.getcwd(), err or vim.inspect(opened[5]))
+
 io.stdout:write(("\n%d passed, %d failed\n"):format(pass_count, fail_count))
 if fail_count > 0 then os.exit(1) end
