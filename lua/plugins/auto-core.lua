@@ -1,7 +1,10 @@
 -- auto-core.nvim — foundation library for the AutoVim plugin family.
 --
 -- Plugin source: github.com/yongjohnlee80/auto-core.nvim. Pinned via
--- `version = "^0.4.0"` (caret) so lazy.nvim auto-tracks v0.4.x. v0.4.0 is
+-- `version = "^0.5.0"` (caret) so lazy.nvim auto-tracks v0.5.x. v0.5.0 resolves
+-- a file's refs with the variables of the workspace that owns it and retires
+-- `$WORKSPACE` (ADR 1792132105); it needs AutoDoc v0.1.53 (protocol 24) and
+-- ships with auto-finder v0.6.0. v0.4.0 was
 -- the todo cutover (ADR 1791532020): auto-core.todo forwards to AutoDoc's
 -- todos.* verbs, so it needs AutoDoc v0.1.41 and ships with auto-finder
 -- v0.5.9 and auto-agents v0.3.5. v0.3.0 was the release that added auto-core.kb: the project's primary KB, the one
@@ -49,7 +52,7 @@ return {
     "yongjohnlee80/auto-core.nvim",
     -- Caret pin: tracks v0.3.x (auto-update within the minor line),
     -- refuses v0.4+ until the bump is explicit.
-    version = "^0.4.0",
+    version = "^0.5.0",
     -- plenary is auto-core's only hard dep per ADR §"Resolutions" #3.
     dependencies = { "nvim-lua/plenary.nvim" },
     -- Consumer-owned keymap for the on-demand log viewer
