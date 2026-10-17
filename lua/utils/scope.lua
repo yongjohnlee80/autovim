@@ -10,9 +10,11 @@
 -- lazygit (`<leader>gg`), which is the tell that it belongs in one place rather
 -- than being re-fixed per feature.
 --
--- Values come from auto-core's canonical `$WORKSPACE` / `$KB_ROOT` built-ins —
--- the same resolvers the todo store uses when it writes portable task refs, so
--- search scope, git scope and task refs cannot disagree.
+-- Values come from auto-core: the session's workspace root (`auto-core.todo.paths`)
+-- and the `$KB_ROOT` built-in, the resolvers the todo store uses, so search scope,
+-- git scope and task refs cannot disagree. auto-core v0.5.0 retired the
+-- `$WORKSPACE` variable (ADR 1792132105): a variable now belongs to a KB, and
+-- "which project am I in" is the session's question, which todo.paths answers.
 --
 -- Resolution is per CALL, never cached at spec-eval time, so switching
 -- worktrees mid-session moves the scope with it.
@@ -21,7 +23,7 @@ local M = {}
 
 ---Resolve one of auto-core's built-in path variables. Soft dependency —
 ---AutoVim must stay usable when auto-core is absent or not yet loaded.
----@param name string  `"WORKSPACE"` or `"KB_ROOT"`
+---@param name string  e.g. `"KB_ROOT"`
 ---@return string?
 function M.auto_core_var(name)
   local ok, vars = pcall(require, "auto-core.todo.vars")
@@ -35,10 +37,19 @@ function M.auto_core_var(name)
   return nil
 end
 
----The workspace root, falling back to cwd when auto-core cannot answer.
+---The workspace root: auto-core's session workspace (`todo.paths.workspace_root`:
+---the root auto-core recorded, else the active worktree, else cwd), or cwd when
+---auto-core cannot answer.
 ---@return string
 function M.workspace_root()
-  return M.auto_core_var("WORKSPACE") or vim.fn.getcwd()
+  local ok, paths = pcall(require, "auto-core.todo.paths")
+  if ok and type(paths) == "table" and type(paths.workspace_root) == "function" then
+    local ok_root, root = pcall(paths.workspace_root)
+    if ok_root and type(root) == "string" and root ~= "" then
+      return root
+    end
+  end
+  return vim.fn.getcwd()
 end
 
 ---The knowledge-base root, or nil.
@@ -112,8 +123,8 @@ end
 ---died with "must be run inside a git repository". It was passing
 ---`workspace_root()`, and this workspace is a CONTAINER of eleven separate
 ---repos — several of them bare with their worktrees nested inside. A container
----of repos is not a repo, so there was no value of `WORKSPACE` that could have
----worked here.
+---of repos is not a repo, so there was no workspace root that could have worked
+---here.
 ---
 ---`<leader>gw` had already published the right answer into auto-core; nothing
 ---read it. Hence the order:

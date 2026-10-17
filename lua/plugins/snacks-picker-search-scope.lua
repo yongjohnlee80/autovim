@@ -16,10 +16,10 @@
 -- Fix: resolve the scope ourselves and pass an explicit `cwd`, which makes
 -- `LazyVim.pick.open` skip root detection entirely (see
 -- `lazyvim/util/pick.lua`: `if not opts.cwd and opts.root ~= false then
--- opts.cwd = LazyVim.root(...)`). The values come from auto-core's canonical
--- `$WORKSPACE` / `$KB_ROOT` built-ins (`auto-core.todo.vars`) — the same
--- resolvers the todo store uses when it writes portable task refs, so search
--- scope and task refs can never disagree.
+-- opts.cwd = LazyVim.root(...)`). The values come from auto-core (`utils.scope`):
+-- the session's workspace root (`auto-core.todo.paths`) and the `$KB_ROOT`
+-- built-in (`auto-core.todo.vars`) — the resolvers the todo store uses, so
+-- search scope and task refs can never disagree.
 --
 -- Resolution runs per keypress rather than at spec-eval time, so switching
 -- worktrees mid-session moves the scope with it.

@@ -88,8 +88,9 @@ local scope_chunk = assert(loadfile(root .. "lua/utils/scope.lua"))
 local function with_auto_core(active, workspace)
   package.loaded["auto-core.git.worktree"] = active ~= false
       and { get_active = function() return active end } or nil
-  package.loaded["auto-core.todo.vars"] = workspace ~= false
-      and { get = function(n) return n == "WORKSPACE" and workspace or nil end } or nil
+  -- the session's workspace root (auto-core v0.5.0 retired $WORKSPACE)
+  package.loaded["auto-core.todo.paths"] = workspace ~= false
+      and { workspace_root = function() return workspace end } or nil
   return assert(scope_chunk())
 end
 
