@@ -11,8 +11,8 @@
 -- resolver every family plugin (auto-agents ^0.3.0, auto-finder, worktree,
 -- AutoDoc) reads its KB root from (ADR 1791209946). v0.2.0 added git.log /
 -- git.diff / ui.marks / ui.diffview.
--- patch + minor releases (additive-only per the auto-core-maintenance
--- convention) and refuses to cross to v0.2+ unprompted.
+-- The caret takes patch releases within v0.5.x (additive-only per the
+-- auto-core-maintenance convention) and refuses to cross to v0.6+ unprompted.
 --
 -- Other AutoVim plugins (auto-agents, auto-finder, autodoc, autodb,
 -- worktree) reference auto-core in their `dependencies` block by
@@ -50,8 +50,8 @@
 return {
   {
     "yongjohnlee80/auto-core.nvim",
-    -- Caret pin: tracks v0.3.x (auto-update within the minor line),
-    -- refuses v0.4+ until the bump is explicit.
+    -- Caret pin: tracks v0.5.x (auto-update within the minor line),
+    -- refuses v0.6+ until the bump is explicit.
     version = "^0.5.0",
     -- plenary is auto-core's only hard dep per ADR §"Resolutions" #3.
     dependencies = { "nvim-lua/plenary.nvim" },
