@@ -21,8 +21,10 @@ end
 
 io.stdout:write("search scope — <leader>fK / <leader>sK search the KB root\n")
 
-local vars = { WORKSPACE = "/ws", KB_ROOT = "/kb" }
+-- $WORKSPACE is retired in auto-core v0.5.0; a stale value must not scope the workspace pickers
+local vars = { WORKSPACE = "/stale-workspace-var", KB_ROOT = "/kb" }
 package.loaded["auto-core.todo.vars"] = { get = function(name) return vars[name] end }
+package.loaded["auto-core.todo.paths"] = { workspace_root = function() return "/ws" end }
 local opened, warned = {}, {}
 _G.LazyVim = {
   pick = { open = function(cmd, o) opened[#opened + 1] = { cmd = cmd, cwd = o and o.cwd } end },
@@ -49,7 +51,8 @@ ok("with no KB root it runs, opens nothing, and says why",
   ran and #opened == 2 and warned[1] and warned[1]:find("primary KB", 1, true) ~= nil, err or vim.inspect(warned))
 
 ran, err = pcall(keys["<leader>ff"])
-ok("the workspace pickers still open at the workspace", ran and opened[3] and opened[3].cwd == "/ws", err or vim.inspect(opened[3]))
+ok("the workspace pickers open at auto-core's session workspace, not $WORKSPACE",
+  ran and opened[3] and opened[3].cwd == "/ws", err or vim.inspect(opened[3]))
 
 io.stdout:write(("\n%d passed, %d failed\n"):format(pass_count, fail_count))
 if fail_count > 0 then os.exit(1) end

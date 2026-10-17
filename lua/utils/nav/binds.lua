@@ -52,7 +52,7 @@ end
 
 ---The workspace these binds belong to.
 ---
----Resolved through `utils.scope`, i.e. auto-core's canonical `$WORKSPACE` with
+---Resolved through `utils.scope`, i.e. auto-core's session workspace root with
 ---a cwd fallback — the same resolver lazygit and the Root-Dir pickers use, so
 ---"which project am I in" cannot mean two different things across AutoVim.
 ---Resolved per CALL, never cached, so switching worktrees mid-session switches
