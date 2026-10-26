@@ -49,7 +49,7 @@
 return {
   {
     "yongjohnlee80/autodoc",
-    version = "^0.2.0",
+    version = "^0.3.0",
     build = "build.lua",
     dependencies = { "auto-core.nvim" },
     cmd = {
