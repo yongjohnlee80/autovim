@@ -132,6 +132,13 @@ cmd_edit() {
 	read -rp "Workspace name [$name]: " new_name
 	new_name="${new_name:-$name}"
 	validate_name "$new_name"
+	# A live session can't be renamed: its Neovim and agents were started with
+	# AUTOVIM_PROJECT=$name, their crew scope, and a running process's environment can't be
+	# changed. Renamed live, the session would keep the old identity, and a new workspace under
+	# the old name would collide with it.
+	if [[ "$new_name" != "$name" ]] && session_exists "$name"; then
+		die "workspace '$name' is running: its Neovim and agents carry AUTOVIM_PROJECT=$name. Stop it first (autovim kill $name), then rename"
+	fi
 
 	read -rp "Workspace directory [$cur_dir]: " new_dir
 	new_dir="${new_dir:-$cur_dir}"
@@ -143,10 +150,6 @@ cmd_edit() {
 			die "workspace '$new_name' already exists — rm it first or pick a different name"
 		fi
 		remove_entry "$name"
-		if session_exists "$name"; then
-			tmux rename-session -t "$name" "$new_name"
-			log "renamed live session $name → $new_name"
-		fi
 	fi
 	upsert "$new_name" "$new_dir"
 	log "updated: $new_name → $new_dir"
