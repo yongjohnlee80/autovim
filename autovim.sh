@@ -244,7 +244,9 @@ cmd_attach() {
 
 	[[ -d "$dir" ]] || die "workspace directory missing: $dir (edit with: autovim edit $name)"
 
-	tmux new-session -d -s "$name" -c "$dir"
+	# AUTOVIM_PROJECT names the project to Neovim and to every agent it spawns: the crew scope
+	# autovim:<project> that its agents register under (ADR 1793271500 §4.3). tmux -e needs 3.2+.
+	tmux new-session -d -s "$name" -c "$dir" -e AUTOVIM_PROJECT="$name"
 	# Plain `nvim`, NOT `nvim .` — deliberately.
 	#
 	# The `-c "$dir"` above already starts the pane in the workspace directory,
