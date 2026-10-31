@@ -14,6 +14,10 @@
 -- `project init`, etc.) to populate it.
 local opts = {
   log_level = "info",
+  -- The crew (ADR 1793271500, phase 5): the recipients whose mail goes through the AutoDoc
+  -- daemon instead of the file mailbox, by codename, or "*" for all. Cut over one at a time:
+  -- jarvis first, then everyone once its round trip is verified.
+  crew = { cutover = { "jarvis" } },
 }
 
 return {
