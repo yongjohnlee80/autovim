@@ -15,9 +15,10 @@
 local opts = {
   log_level = "info",
   -- The crew (ADR 1793271500, phase 5): the recipients whose mail goes through the AutoDoc
-  -- daemon instead of the file mailbox, by codename, or "*" for all. Cut over one at a time:
-  -- jarvis first, then everyone once its round trip is verified.
-  crew = { cutover = { "jarvis" } },
+  -- daemon instead of the file mailbox, by codename, or "*" for all. jarvis went first
+  -- (2026-10-31); everyone since 2026-11-02, after its round trip held and the ghost-session
+  -- fixes landed (Johno's ruling).
+  crew = { cutover = "*" },
 }
 
 return {
