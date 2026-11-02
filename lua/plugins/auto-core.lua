@@ -45,11 +45,12 @@
 --   M.commands - the whitelisted command registry (auto-agents' editor socket)
 --   M.instance - this Neovim's instance id
 --
--- Stability contract: every v0.X.Y from v0.1.0 forward is additive
--- only — no renames, removals, or break-shape changes to existing
--- functions, state-namespace keys, event topics, or persisted
--- schemas. See the `auto-core-maintenance` convention in the
--- auto-agents kb for the full eleven-rule contract.
+-- Stability contract: additive within a minor line — no v0.X.Y patch
+-- renames, removes or break-shapes an existing function, state-namespace
+-- key, event topic or persisted schema; a new minor (v0.X.0) may remove
+-- one, and its CHANGELOG entry names what was removed and why (v0.6.0
+-- removed the file mailbox). The caret above takes one minor line's
+-- patches and never crosses to the next unprompted.
 
 return {
   {
