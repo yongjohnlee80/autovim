@@ -1,7 +1,11 @@
 -- auto-core.nvim — foundation library for the AutoVim plugin family.
 --
 -- Plugin source: github.com/yongjohnlee80/auto-core.nvim. Pinned via
--- `version = "^0.5.0"` (caret) so lazy.nvim auto-tracks v0.5.x. v0.5.0 resolves
+-- `version = "^0.6.0"` (caret) so lazy.nvim auto-tracks v0.6.x. v0.6.0 has no file
+-- mailbox (ADR 1793271500 phase 5): AutoDoc's crew carries every message; the command
+-- registry is auto-core.commands, the instance id auto-core.instance, and the
+-- assignment notifier tells an agent through the crew or auto-agents' fallback (it
+-- ships with auto-agents v0.4.0). v0.5.0 resolves
 -- a file's refs with the variables of the workspace that owns it and retires
 -- `$WORKSPACE` (ADR 1792132105); it needs AutoDoc v0.1.53 (protocol 24) and
 -- ships with auto-finder v0.6.0. v0.4.0 was
@@ -11,8 +15,8 @@
 -- resolver every family plugin (auto-agents ^0.3.0, auto-finder, worktree,
 -- AutoDoc) reads its KB root from (ADR 1791209946). v0.2.0 added git.log /
 -- git.diff / ui.marks / ui.diffview.
--- The caret takes patch releases within v0.5.x (additive-only per the
--- auto-core-maintenance convention) and refuses to cross to v0.6+ unprompted.
+-- The caret takes patch releases within v0.6.x and refuses to cross to v0.7+
+-- unprompted.
 --
 -- Other AutoVim plugins (auto-agents, auto-finder, autodoc, autodb,
 -- worktree) reference auto-core in their `dependencies` block by
@@ -26,7 +30,7 @@
 --     name = "auto-core.nvim",
 -- and lazy will use the working copy on `:Lazy reload auto-core.nvim`.
 --
--- Subsystems exposed (v0.1.5 — mailbox phase 1 landed):
+-- Subsystems exposed:
 --   M.events  - pub/sub bus + topic registry + ring-buffer trace
 --   M.state   - namespaced store with json/ephemeral persist
 --   M.ui      - panel / winbar / section / float / float.multi / highlights
@@ -37,9 +41,9 @@
 --   M.lsp     - tech-stack-aware reset on workspace switch
 --   M.files   - global show_hidden / show_dotfiles prefs
 --   M.health  - :checkhealth auto-core
---   M.debug   - opt-in winlog + mailbox diagnostic probes
---   M.mailbox - file-backed cross-process transport, router,
---               command registry, executioner, viewer (ADR 0013)
+--   M.debug   - opt-in winlog diagnostic probe
+--   M.commands - the whitelisted command registry (auto-agents' editor socket)
+--   M.instance - this Neovim's instance id
 --
 -- Stability contract: every v0.X.Y from v0.1.0 forward is additive
 -- only — no renames, removals, or break-shape changes to existing
@@ -50,9 +54,9 @@
 return {
   {
     "yongjohnlee80/auto-core.nvim",
-    -- Caret pin: tracks v0.5.x (auto-update within the minor line),
-    -- refuses v0.6+ until the bump is explicit.
-    version = "^0.5.0",
+    -- Caret pin: tracks v0.6.x (auto-update within the minor line),
+    -- refuses v0.7+ until the bump is explicit.
+    version = "^0.6.0",
     -- plenary is auto-core's only hard dep per ADR §"Resolutions" #3.
     dependencies = { "nvim-lua/plenary.nvim" },
     -- Consumer-owned keymap for the on-demand log viewer

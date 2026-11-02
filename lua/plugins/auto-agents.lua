@@ -12,21 +12,18 @@
 -- with fallback to `global.toml` is the source of truth. Open the panel
 -- (`:AutoAgents` / `<F5>`) and use the admin slot's wizard (`agent add`,
 -- `project init`, etc.) to populate it.
+-- Every agent's mail goes through AutoDoc's crew (ADR 1793271500, phase 5): auto-agents v0.4.0
+-- has no file mailbox, so there is no cutover to configure.
 local opts = {
   log_level = "info",
-  -- The crew (ADR 1793271500, phase 5): the recipients whose mail goes through the AutoDoc
-  -- daemon instead of the file mailbox, by codename, or "*" for all. jarvis went first
-  -- (2026-10-31); everyone since 2026-11-02, after its round trip held and the ghost-session
-  -- fixes landed (Johno's ruling).
-  crew = { cutover = "*" },
 }
 
 return {
   {
     "yongjohnlee80/auto-agents",
-    -- v0.3.0: agents take the project's primary KB from auto-core.kb
-    -- (ADR 1791209946); auto-agents no longer scaffolds or types KBs.
-    version = "^0.3.0",
+    -- v0.4.0: no file mailbox (ADR 1793271500 phase 5): mail goes through AutoDoc's crew,
+    -- and a notice no crew wake can land is typed into the agent's terminal.
+    version = "^0.4.0",
     dependencies = {
       "folke/snacks.nvim",
       -- Soft dep: the diff-review bridge (per-agent `diff_review = true`).
@@ -53,27 +50,8 @@ return {
       { "<leader>ac", "<cmd>AutoAgents<cr>", desc = "Toggle auto-agents (last-focused slot)" },
       { "<leader>ad", "<cmd>AutoAgentsDiffQueue<cr>", desc = "Toggle unified diff queue" },
       { "<F11>", "<cmd>AutoAgentsDiffQueue<cr>", mode = { "n", "t" }, desc = "Toggle unified diff queue" },
-      -- ADR 0024 / ADR-0036: operator-side bootstrap-refresh recovery
-      -- keymaps. Slot picker → deterministic prompt → paste-safe submit.
-      -- Plugin owns the prompt body so behaviour stays deterministic
-      -- across invocations. (`<leader>ap` was repurposed from the old
-      -- `:AutoAgentsProject` shortcut — that command is still callable
-      -- directly via `:AutoAgentsProject`.)
-      {
-        "<leader>am",
-        function() require("auto-agents").reingest_bootstrap_picker() end,
-        desc = "Re-ingest bootstrap doc into a slot",
-      },
-      {
-        "<leader>ai",
-        function() require("auto-agents").reassert_identity_picker() end,
-        desc = "Re-assert runtime identity for a slot",
-      },
-      {
-        "<leader>ap",
-        function() require("auto-agents").permission_bootstrap_picker() end,
-        desc = "Bootstrap mailbox permissions for a slot (PERMISSION.md)",
-      },
+      -- `<leader>am` / `<leader>ai` / `<leader>ap` (the file mailbox's bootstrap re-ingest,
+      -- identity re-assert and permission bootstrap) went with it in auto-agents v0.4.0.
       -- ADR-0045: send the current editor buffer to a live agent slot.
       -- Buffer captured at invocation → slot picker → "Instructions:"
       -- input → file-path reference pushed via send_slot. Plugin
@@ -84,7 +62,7 @@ return {
         desc = "Send current buffer to an agent",
       },
       -- ADR-0082: forward selected text (visual mode) or clipboard (normal mode)
-      -- to a live agent slot with snippet confirmation prompt and mailbox delivery.
+      -- to a live agent slot with snippet confirmation prompt.
       {
         "<leader>af",
         function() require("auto-agents").forward_text_picker() end,
