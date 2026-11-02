@@ -129,7 +129,7 @@ function M.slots()
       -- `name` first, deliberately diverging from the dock's `title` first.
       -- The dock is a status surface where "Ultron (working)" reads well; this
       -- is a navigation surface, and the name is the agent's actual identity —
-      -- the string that appears in `$AUTO_AGENTS_MAILBOX_ID`, in assignments
+      -- the string that appears in the agent's crew codename, in assignments
       -- and in every log line. `ultron-prime` is addressable; `Ultron` is a
       -- nickname for it.
       by_slot[s] = e.name or e.title or e.kind or "agent"
