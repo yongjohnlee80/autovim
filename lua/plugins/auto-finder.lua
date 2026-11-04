@@ -1,7 +1,9 @@
 -- auto-finder.nvim — multi-section side panel (files, repos, config, …).
 --
 -- Plugin source: github.com/yongjohnlee80/auto-finder.nvim. Pinned via
--- `version = "^0.6.0"` (caret). v0.6.0 shows the owning workspace's variables in
+-- `version = "^0.6.3"` (caret). v0.6.3 routes an assignment to auto-agents v0.4.0's bare
+-- agent id (the file mailbox retired), so it is the floor beside auto-agents ^0.4.0; an
+-- earlier 0.6.x would assign to an id v0.4.0 no longer names. v0.6.0 shows the owning workspace's variables in
 -- the todos panel's Vars section (ADR 1792132105); it needs auto-core v0.5.0 and
 -- AutoDoc v0.1.53. v0.5.0 retired the neo-tree fork: the files
 -- and buffers slots are in-house (ADR-0200). v0.4.0 rebuilt the repos panel on
@@ -33,7 +35,7 @@
 return {
   {
     "yongjohnlee80/auto-finder.nvim",
-    version = "^0.6.0",
+    version = "^0.6.3",
     -- Dependencies:
     --   - web-devicons: file icons (optional for the plugin, wanted here)
     --   - auto-core.nvim: hard dep (panel / state / log / section /
